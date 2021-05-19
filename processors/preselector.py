@@ -95,20 +95,21 @@ class Preselector(processor.ProcessorABC):
 
             # build 4l final state, apply dR criteria
             lltt = ak.cartesian({'ll': ll, 'tt': tt}, axis=1)
+            lltt = check_trigger_path(lltt, HLT_all, year, cat, self.cutflow, sync=self.sync)
+            lltt = dR_final_state(lltt, cat, self.cutflow)
             lltt = lepton_count_veto(lltt, e_counts, m_counts, cat, self.cutflow)
-            self.cutflow.print_cutflow()
-
-            lltt = dR_final_state(lltt, cat)
 
             # build Z candidate, check trigger filter
-            lltt = build_Z_cand(lltt)
-            lltt = trigger_filter(lltt, trig_obj, cat)
+            lltt = build_Z_cand(lltt, self.cutflow)
+            lltt = trigger_filter(lltt, trig_obj, cat, self.cutflow)
 
             # build ditau candidate
-            lltt = build_ditau_cand(lltt, cat)
+            lltt = build_ditau_cand(lltt, cat, self.cutflow)
 
+            self.cutflow.print_cutflow()
             # store output variables
-            events = events_all[~ak.is_none(lltt, axis=0)]
+            good_events = ak.flatten(~ak.is_none(lltt, axis=1))
+            events = events_all[good_events]
             evts = ak.to_numpy(ak.flatten(events.event, axis=None))
             lumis = ak.to_numpy(ak.flatten(events.luminosityBlock, axis=None))
             runs = ak.to_numpy(ak.flatten(events.run, axis=None))

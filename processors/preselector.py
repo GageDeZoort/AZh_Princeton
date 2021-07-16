@@ -72,11 +72,14 @@ class Preselector(processor.ProcessorABC):
             "m_2": processor.column_accumulator(np.array([])),
             "m_3": processor.column_accumulator(np.array([])),
             "m_4": processor.column_accumulator(np.array([])),
-            "id_VSe": processor.column_accumulator(np.array([])),
-            "id_VSm": processor.column_accumulator(np.array([])),
-            "id_VSj": processor.column_accumulator(np.array([])),
+            "id_VSe_3": processor.column_accumulator(np.array([])),
+            "id_VSm_3": processor.column_accumulator(np.array([])),
+            "id_VSj_3": processor.column_accumulator(np.array([])),
+            "id_VSe_4": processor.column_accumulator(np.array([])),
+            "id_VSm_4": processor.column_accumulator(np.array([])),
+            "id_VSj_4": processor.column_accumulator(np.array([])),
             "m_ll": processor.column_accumulator(np.array([])),
-            "m_tt_vis": processor.column_accumulator(np.array([])),
+            "m_tt": processor.column_accumulator(np.array([])),
             "m_tt_corr": processor.column_accumulator(np.array([])),
             "m_tt_cons": processor.column_accumulator(np.array([])),
             "m_lltt_vis": processor.column_accumulator(np.array([])),
@@ -90,6 +93,10 @@ class Preselector(processor.ProcessorABC):
     @property 
     def accumulator(self):
         return self._accumulator
+        
+    @staticmethod
+    def npflat(a):
+        return ak.to_numpy(ak.flatten(a))
 
     def process(self, events):
         self.output = self.accumulator.identity()
@@ -158,8 +165,8 @@ class Preselector(processor.ProcessorABC):
             events = events_all[good_events]
             lltt = lltt[good_events]
             masses = run_fastmtt(lltt, events.MET, cat, self.cutflow)
-            print(masses)
 
+            # output event-level info
             evts = ak.to_numpy(ak.flatten(events.event, axis=None))
             lumis = ak.to_numpy(ak.flatten(events.luminosityBlock, axis=None))
             runs = ak.to_numpy(ak.flatten(events.run, axis=None))
@@ -168,6 +175,28 @@ class Preselector(processor.ProcessorABC):
             self.output["lumi"] += processor.column_accumulator(lumis)
             self.output["run"] += processor.column_accumulator(runs)
             self.output["cat"] += processor.column_accumulator(cats)
+            
+            # output raw, corrected, and constrained masses
+            mll = self.npflat((lltt['ll']['l1'] + lltt['ll']['l2']).mass)
+            mtt = self.npflat((lltt['tt']['t1'] + lltt['tt']['t2']).mass)
+            self.output['m_ll'] += processor.column_accumulator(mll)
+            self.output['m_tt'] += processor.column_accumulator(mtt)
+            for mass, mass_vals in masses.items():
+                self.output[mass] += processor.column_accumulator(mass_vals)
+            
+            # output four-vectors for each final state object
+            label_dict = {('ll', 'l1'): '_1', ('ll', 'l2'): '_2',
+                          ('tt', 't1'): '_3', ('tt', 't2'): '_4'}
+            for leg, label in label_dict.items():                
+                data_out = lltt[leg[0]][leg[1]]
+                self.output['pt'+label] += processor.column_accumulator(self.npflat(data_out.pt))
+                self.output['eta'+label] += processor.column_accumulator(self.npflat(data_out.eta))
+                self.output['phi'+label] += processor.column_accumulator(self.npflat(data_out.phi))
+                self.output['m'+label] += processor.column_accumulator(self.npflat(data_out.mass))
+                if ((cat[2] == 't' and label=='_3') or (cat[3]=='t' and label=='_4')):
+                    self.output['id_VSe'+label] += processor.column_accumulator(self.npflat(data_out.idDeepTau2017v2p1VSjet))
+                    self.output['id_VSm'+label] += processor.column_accumulator(self.npflat(data_out.idDeepTau2017v2p1VSmu))
+                    self.output['id_VSj'+label] += processor.column_accumulator(self.npflat(data_out.idDeepTau2017v2p1VSe))
             
             #self.printer.print_selected_events(cat, events, lltt[good_events],
             #                                   loose_e[good_events], loose_m[good_events],

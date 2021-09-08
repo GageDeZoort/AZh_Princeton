@@ -13,8 +13,8 @@ indir = "sample_lists/sample_yamls"
 # open the sample yaml file 
 #with open(os.path.join(indir, "GluGluToAToZhToLLTauTau_M300_2018.yaml"), 
 with open(os.path.join(indir, "AToZhToLLTauTau_M220_2018_samples.yaml"),
-          'r') as stream:
-#with open(os.path.join(indir, "MC_2018_all.yaml"), 'r') as stream:
+#with open(os.path.join(indir, "MC_2018_DYJets.yaml"), 
+         'r') as stream:
     try: 
         fileset = yaml.safe_load(stream)
     except yaml.YAMLError as exc: 
@@ -28,7 +28,7 @@ out = processor.run_uproot_job(
     processor_instance=Preselector(sync=True, categories='all', 
                                    exc1_path=exc1_path, exc2_path=exc2_path),
     executor=processor.futures_executor,
-    executor_args={"schema": NanoAODSchema, "workers": 6},
+    executor_args={"schema": NanoAODSchema, "workers": 12},
 )
 
 lumi = np.array(out['lumi'].value, dtype=int)
@@ -42,4 +42,6 @@ for i, e in enumerate(evt):
    sync_file.write('{0:d},{1:d},{2:d},{3}\n'
                    .format(run[i], lumi[i], evt[i], cat[i]))
 sync_file.close()
-util.save(out, 'sync_out.coffea')
+
+outdir = '/eos/uscms/store/user/jdezoort/AZh_output'
+util.save(out, os.path.join(outdir, 'AZh_220GeV_2018.coffea'))

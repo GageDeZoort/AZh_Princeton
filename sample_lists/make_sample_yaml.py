@@ -2,9 +2,9 @@ import os
 import json
 import argparse
 import subprocess
+import numpy as np
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-n', '--name', default='all')
 parser.add_argument('-s', '--source', default='MC')
 parser.add_argument('-y', '--year', default='')
 #parser.add_argument('-o', '--outdir', default='samples_all')
@@ -13,45 +13,27 @@ args = parser.parse_args()
 eras = {'2016':'Summer16', '2017':'Fall17', '2018':'Autumn18'}
 era = eras[args.year]
 
+# output to a yaml
+outfile = open("sample_yamls/{0}_{1}.yaml".format(args.source, args.year), "w+")
+
 # open sample file
-infile = open("{0}_{1}.csv".format(args.source, args.year), 'r')
-sample_dict = {line.split(',')[0]: line.split(',')[1].strip('\n') 
-               for line in infile}
-
-# list sample properties
-#infile = open(indir+"MCsamples_{0}_paper.csv".format(args.year))
-#sample_properties = {line.split(',')[0]: [line.split(',')[1].strip(), line.split(',')[2].strip(),
-#                                          line.split(',')[3].strip(), line.split(',')[4].strip()] 
-#                     for line in infile}
-
-# loop over all samples
-#outdir = args.outdir
-#properties_outfile = open(outdir+"/{0}_{1}_properties.yaml".format(args.name, args.year), "w+")
-
-for name, loc in sample_dict.items():
-    print(name, loc)
-    outfile = open("sample_yamls/{0}_{1}.yaml".format(name, args.year), "w+")
-    if args.name != '':
-        if args.name not in name: continue
+fname = "{0}_{1}.csv".format(args.source, args.year)
+f = np.genfromtxt(fname,delimiter=',', names=True, comments='#',
+                  dtype=np.dtype([('f0', '<U9'), ('f1', '<U12'), ('f2', '<U32'), 
+                                  ('f3', '<U250'), ('f4', '<f16'), ('f5', '<f8')]))
+                  
+for i in range(len(f)):
+    print('...processing', f['name'][i])
 
     # get sample list
-    query = '"dataset={0}"'.format(loc)
+    query = '"dataset={0}"'.format(f['dataset'][i])
     command = 'dasgoclient --query={0}'.format(query)
     print('...executing:\n', command)
     sample = subprocess.check_output(command, shell=True).decode().split('\n')[0]
-    outfile.write("{0}_{1}:\n".format(name, args.year))
-
-    # fill properties file
-    #properties = sample_properties[name]
-    #properties_outfile.write("{0}_{1}:\n".format(name, args.year))
-    #properties_outfile.write("    group: {0}\n".format(properties[0]))
-    #properties_outfile.write("    xsec: {0}\n".format(properties[1]))
-    #properties_outfile.write("    total_weight: {0}\n".format(properties[3]))
+    outfile.write("{0}_{1}:\n".format(f['name'], args.year))
     
     # list all files in sample
     print('...sample:', sample)
-    #print(" {0}".format(sample))
-    
     query = '"file dataset={0}"'.format(sample)
     command = 'dasgoclient --query={0}'.format(query)
     try: 
@@ -59,15 +41,20 @@ for name, loc in sample_dict.items():
     except: 
         continue
     
-    print(sample_files)
+    print('...sample_files:', sample_files)
     sample_files = sample_files.split('\n')[:-1]
     for sample_file in sample_files:
-        if ((not sample_file) or (era not in sample_file)): continue
-        command = 'edmFileUtil -d {0}'.format(sample_file)
-        sample_file_loc = subprocess.check_output(command, shell=True)    
-        print(sample_file_loc)
-        outfile.write("  - " + sample_file_loc.strip('\n').replace('-site','') + "\n")
+        if ((not sample_file) or (era not in sample_file)): 
+            print("... ***skipping file:", sample_file)
+            continue
+        redirector = '/cmsxrootd-site.fnal.gov/'
+        if f['redirector'][i]!='': redirector = f['redirector'][i]
+        outfile.write("  - root:/{}{}\n".format(redirector,sample_file))
+        #command = 'edmFileUtil -d {0}'.format(sample_file)
+        #sample_file_loc = subprocess.check_output(command, shell=True)    
+        #print(sample_file_loc)
+        #outfile.write("  - root:/{}{}\n".format(')
 
-    outfile.close()
-#properties_outfile.close()
+outfile.close()
+
 

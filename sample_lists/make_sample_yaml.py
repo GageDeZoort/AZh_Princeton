@@ -30,7 +30,7 @@ for i in range(len(f)):
     command = 'dasgoclient --query={0}'.format(query)
     print('...executing:\n', command)
     sample = subprocess.check_output(command, shell=True).decode().split('\n')[0]
-    outfile.write("{0}_{1}:\n".format(f['name'], args.year))
+    outfile.write("{0}_{1}:\n".format(f['name'][i], args.year))
     
     # list all files in sample
     print('...sample:', sample)
@@ -41,7 +41,6 @@ for i in range(len(f)):
     except: 
         continue
     
-    print('...sample_files:', sample_files)
     sample_files = sample_files.split('\n')[:-1]
     for sample_file in sample_files:
         if ((not sample_file) or (era not in sample_file)): 
@@ -49,11 +48,7 @@ for i in range(len(f)):
             continue
         redirector = '/cmsxrootd-site.fnal.gov/'
         if f['redirector'][i]!='': redirector = f['redirector'][i]
-        outfile.write("  - root:/{}{}\n".format(redirector,sample_file))
-        #command = 'edmFileUtil -d {0}'.format(sample_file)
-        #sample_file_loc = subprocess.check_output(command, shell=True)    
-        #print(sample_file_loc)
-        #outfile.write("  - root:/{}{}\n".format(')
+        outfile.write('  - root:/{}{}\n'.format(redirector,sample_file))
 
 outfile.close()
 

@@ -11,6 +11,8 @@ parser.add_argument('-y', '--year', default='')
 args = parser.parse_args()
 
 eras = {'2016':'Summer16', '2017':'Fall17', '2018':'Autumn18'}
+if "UL" in args.source:
+    eras = {'2018':'Summer20UL18'}
 era = eras[args.year]
 
 # output to a yaml
@@ -19,7 +21,7 @@ outfile = open("sample_yamls/{0}_{1}.yaml".format(args.source, args.year), "w+")
 # open sample file
 fname = "{0}_{1}.csv".format(args.source, args.year)
 f = np.genfromtxt(fname,delimiter=',', names=True, comments='#',
-                  dtype=np.dtype([('f0', '<U9'), ('f1', '<U12'), ('f2', '<U32'), 
+                  dtype=np.dtype([('f0', '<U32'), ('f1', '<U32'), ('f2', '<U32'), 
                                   ('f3', '<U250'), ('f4', '<f16'), ('f5', '<f8')]))
                   
 for i in range(len(f)):
@@ -43,7 +45,7 @@ for i in range(len(f)):
     
     sample_files = sample_files.split('\n')[:-1]
     for sample_file in sample_files:
-        if ((not sample_file) or (era not in sample_file)): 
+        if (not sample_file): #or (era not in sample_file)): 
             print("... ***skipping file:", sample_file)
             continue
         redirector = '/cmsxrootd-site.fnal.gov/'

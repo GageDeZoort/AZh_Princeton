@@ -2,24 +2,23 @@ import numpy as np
 import awkward as ak
 from coffea.nanoevents.methods.vector import PtEtaPhiMLorentzVector
 
-def filter_MET(events, cutflow):
+def filter_MET(events, selections, cutflow):
     flags = events.Flag
     MET_filter = (flags.goodVertices & flags.HBHENoiseFilter &
                   flags.HBHENoiseIsoFilter &
                   flags.EcalDeadCellTriggerPrimitiveFilter &
                   flags.BadPFMuonFilter & flags.ecalBadCalibFilter)
-    events = events[MET_filter]
     cutflow.fill_event_cutflow(events, 'MET filter')
-    return events
+    selections.add('met_filter', MET_filter)
 
-def filter_PV(events, cutflow):
+
+def filter_PV(events, selections, cutflow):
     PV = events.PV
-    PV_filter = ((PV.ndof > 4) &
+    pv_filter = ((PV.ndof > 4) &
                  (abs(PV.z) < 24) &
                  (np.sqrt(PV.x**2 + PV.y**2) < 2))
-    events = events[PV_filter]
     cutflow.fill_event_cutflow(events, 'PV filter')
-    return events
+    selections.add('pv_filter', pv_filter)
 
 def loose_electrons(electrons, cutflow):
     loose_e = electrons[(np.abs(electrons.dxy) < 0.045) &
@@ -92,18 +91,11 @@ def loose_taus(taus, cutflow):
 
     return loose_t
 
-def lepton_count_veto(lltt, e_counts, m_counts, cat, cutflow):
-    correct_e_counts = {'eeem': 3, 'eeet': 3, 'eemt': 2, 'eett': 2,
-                        'mmem': 1, 'mmet': 1, 'mmmt': 0, 'mmtt': 0}
-    correct_m_counts = {'eeem': 1, 'eeet': 0, 'eemt': 1, 'eett': 0,
-                        'mmem': 3, 'mmet': 2, 'mmmt': 3, 'mmtt': 2}
-
-    mask = ((e_counts == correct_e_counts[cat]) &
-            (m_counts == correct_m_counts[cat]))
-    
-    lltt = lltt.mask[mask]
-    cutflow.fill_cutflow(np.sum(ak.num(lltt)>0), 'lepton_count_veto')
-    return ak.fill_none(lltt, [])
+def check_trigger_path(HLT, year, cat,
+                       cutflow, sync=False):
+    mask = trigger_path(HLT, year, cat, sync)
+    cutflow.fill_cutflow(np.sum(mask>0), 'trigger_path')
+    return mask 
 
 def trigger_path(HLT, year, cat, sync=False):
     single_lep_trigs = {'ee': {'2018': ['Ele35_WPTight_Gsf'],
@@ -121,18 +113,33 @@ def trigger_path(HLT, year, cat, sync=False):
                                         'HLT_Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL_DZ']} }
     trig_list = single_lep_trigs[cat[:2]][year]
     triggered = HLT[trig_list[0]]
-    
     if len(trig_list) > 1:
         for trig in trig_list:
             triggered = (triggered | HLT[trig])
-
     return triggered
-        
-def check_trigger_path(lltt, HLT, year, cat, cutflow, sync=False):
-    mask = trigger_path(HLT, year, cat, sync)
-    lltt = lltt.mask[mask]
-    cutflow.fill_cutflow(np.sum(ak.num(lltt)>0), 'trigger_path')
-    return lltt #ak.filllltt #_none(lltt, [])
+
+def lepton_count_veto(e_counts, m_counts, cat, cutflow):
+    correct_e_counts = {'eeem': 3, 'eeet': 3, 'eemt': 2, 'eett': 2,
+                        'mmem': 1, 'mmet': 1, 'mmmt': 0, 'mmtt': 0}
+    correct_m_counts = {'eeem': 1, 'eeet': 0, 'eemt': 1, 'eett': 0,
+                        'mmem': 3, 'mmet': 2, 'mmmt': 3, 'mmtt': 2}
+
+    mask = ((e_counts == correct_e_counts[cat]) &
+            (m_counts == correct_m_counts[cat]))
+
+    cutflow.fill_cutflow(np.sum(mask>0), 'lepton_count_veto')
+    return mask 
+
+def build_Z_cand(ll, cutflow):
+    ll_mass = (ll['l1'] + ll['l2']).mass
+    ll = ll[(ll['l1'].charge != ll['l2'].charge) &
+            ((ll_mass > 60) & (ll_mass < 120))]
+    
+    mass_diffs = abs((ll['l1'] + ll['l2']).mass - 91.118)
+    min_mass_filter = ak.argmin(mass_diffs, axis=1, keepdims=True)
+    ll = ll[min_mass_filter]
+    cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(ll, axis=1))), 'Z_cand')
+    return ll[~ak.is_none(ll, axis=1)] #lltt #ak.fill_none(lltt, [])
 
 def dR_final_state(lltt, cat, cutflow):
     dR_select = {'ee': 0.3, 'em': 0.3, 'mm': 0.3, 'me': 0.3,
@@ -141,36 +148,20 @@ def dR_final_state(lltt, cat, cutflow):
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
     dR_mask = ((l1.delta_r(l2) > dR_select[cat[0]+cat[1]]) &
                (l1.delta_r(t1) > dR_select[cat[0]+cat[2]]) &
-               (l1.delta_r(t2) > dR_select[cat[0]+cat[3]]) & 
-               (l2.delta_r(t1) > dR_select[cat[1]+cat[2]]) & 
-               (l2.delta_r(t2) > dR_select[cat[1]+cat[3]]) & 
+               (l1.delta_r(t2) > dR_select[cat[0]+cat[3]]) &
+               (l2.delta_r(t1) > dR_select[cat[1]+cat[2]]) &
+               (l2.delta_r(t2) > dR_select[cat[1]+cat[3]]) &
                (t1.delta_r(t2) > dR_select[cat[2]+cat[3]]))
-    
+
     lltt = lltt.mask[(dR_mask)]
-    #cutflow.fill_cutflow(ak.num(lltt[~ak.is_none(lltt)], axis=0), 'dR_4l')
-    cutflow.fill_cutflow(np.sum(ak.num(lltt)>0), 'dR_4l')
-    return lltt #ak.fill_none(lltt, [])
+    cutflow.fill_cutflow(np.sum(dR_mask>0), 'dR')
+    return lltt[~ak.is_none(lltt, axis=1)]
 
-def get_ll_mass(lltt):
-    l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
-    return (l1+l2).mass
-
-def build_Z_cand(lltt, cutflow):
-    ll_mass = get_ll_mass(lltt)
-    lltt = lltt[(lltt['ll']['l1'].charge != lltt['ll']['l2'].charge) &
-                ((ll_mass > 60) & (ll_mass < 120))]
-    
-    mass_diffs = abs(get_ll_mass(lltt) - 91.118)
-    min_mass_filter = ak.argmin(mass_diffs, axis=1, keepdims=True)
-    lltt = lltt[min_mass_filter]
-    cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(lltt, axis=1))), 'Z_cand')
-    return lltt #ak.fill_none(lltt, [])
-
-def trigger_filter(lltt, trig_obj, cat, cutflow):
+def trigger_filter(ll, trig_obj, cat, cutflow):
     if cat[:2] == 'ee': pt_min = 36
     if cat[:2] == 'mm': pt_min = 28
     
-    lltrig = ak.cartesian({'ll': lltt['ll'], 'trobj': trig_obj}, axis=1)
+    lltrig = ak.cartesian({'ll': ll, 'trobj': trig_obj}, axis=1)
     l1dR_matches = (lltrig['ll']['l1'].delta_r(lltrig['trobj']) < 0.5)
     l2dR_matches = (lltrig['ll']['l2'].delta_r(lltrig['trobj']) < 0.5)
     filter_bit = ((lltrig['trobj'].filterBits & 2) == 2)
@@ -187,10 +178,11 @@ def trigger_filter(lltt, trig_obj, cat, cutflow):
     l2_match_counts = ak.sum(~ak.is_none(l2_matches, axis=1), axis=1)
     trig_match = (((l1_match_counts) > 0) | 
                   ((l2_match_counts) > 0))
-    lltt = lltt.mask[(trig_match)]
-    cutflow.fill_cutflow(np.sum(ak.num(lltt)>0), 'dR_4l')
-    return ak.fill_none(lltt, [])
-    
+    #ll = ll.mask[(trig_match)]
+    cutflow.fill_cutflow(np.sum(trig_match>0), 'dR_4l')
+    #return ll[~ak.is_none(ll, axis=1)]
+    return trig_match
+
 def build_ditau_cand(lltt, cat, cutflow):
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
     if cat[2:] == 'mt':
@@ -206,7 +198,7 @@ def build_ditau_cand(lltt, cat, cutflow):
     lltt = lltt[ak.argmax(LT, axis=1, keepdims=True)]
     
     cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(lltt, axis=1))), 'ditau_cand')
-    return lltt
+    return lltt[~ak.is_none(lltt, axis=1)]
 
 
 #def run_fastmtt(lltt, met, category, cutflow):

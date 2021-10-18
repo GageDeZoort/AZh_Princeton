@@ -8,7 +8,7 @@ import pandas as pd
 import numba as nb
 from coffea import hist, processor
 from coffea.processor import column_accumulator as col_acc
-
+from coffea import analysis_tools
 from coffea.nanoevents.methods import candidate
 ak.behavior.update(candidate.behavior)
 
@@ -19,12 +19,14 @@ from print_events import EventPrinter
 
 class Preselector(processor.ProcessorABC):
     def __init__(self, sync=False, categories='all',
+                 sample_info=[],
                  sample_dir='../sample_lists/sample_yamls',
                  exc1_path='sync/princeton_all.csv', 
                  exc2_path='sync/desy_all.csv'):
 
         # initialize member variables
         self.sync = sync
+        self.info = sample_info
         self.cutflow = Cutflow()
         if categories == 'all':
             self.categories = {1: 'eeet', 2: 'eemt', 3: 'eett', 4: 'eeem',
@@ -66,20 +68,6 @@ class Preselector(processor.ProcessorABC):
         m4l_cons_hist =  hist.Hist("Counts", group_axis, dataset_axis, category_axis, 
                                    hist.Bin("m4l_cons", "$m_{4l}^{cons}$", 80, 0, 400))
         
-
-        # accumulate histograms and arrays 
-        #output_vars = ["evt", "lumi", "run", "cat",
-        #               "pt_1", "pt_2", "pt_3", "pt_4",
-        #               "eta_1", "eta_2", "eta_3", "eta_4",
-        #               "phi_1", "phi_2", "phi_3", "phi_4",
-        #               "m_1", "m_2", "m_3", "m_4",
-        #               "m_ll", "m_tt", 'm_lltt',
-        #               "m_tt_corr", "m_tt_cons",
-        #               "m_lltt_corr", "m_lltt_cons"]
-
-        #output_dict = {var: col_acc(np.array([])) 
-        #               for var in output_vars}
-        #self._accumulator = processor.dict_accumulator(output_dict)
         self._accumulator = processor.dict_accumulator(
             {'evt': col_acc(np.array([])), 
              'lumi': col_acc(np.array([])),
@@ -117,11 +105,24 @@ class Preselector(processor.ProcessorABC):
         year = dataset.split('_')[-1]
         eras = {'2016': 'Summer16', '2017': 'Fall17', '2018': 'Autumn18'}
         lumi = {'2016': 35.9, '2017': 41.5, '2018': 59.7}
-        #weights = processor.Weights(len(events))
+        
+
+        # get sample properties
+        properties = self.info[self.info['name']==dataset.split('_')[:-1]]
+        group = properties['group'][0]
+        nevts, xsec = properties['nevts'][0], properties['xsec'][0]
+        sample_weight = lumi[year] * xsec / nevts 
+        
+        # initialize global selections
+        global_selections = analysis_tools.PackedSelection()    
         
         # apply initial event filters
-        events = filter_MET(events, self.cutflow)
-        events = filter_PV(events, self.cutflow)
+        filter_MET(events, global_selections, self.cutflow)
+        filter_PV(events, global_selections, self.cutflow)
+        
+        # store a reference to the full event list
+        global_mask = global_selections.all(*global_selections.names)
+        events = events[global_mask]
 
         # grab loosely defined leptons 
         loose_e = loose_electrons(events.Electron, self.cutflow)
@@ -132,30 +133,38 @@ class Preselector(processor.ProcessorABC):
         e_counts = ak.num(loose_e)
         m_counts = ak.num(loose_m)
         
-        # pair the light leptons and the tau candidates
-        #ll_pairs = {'ee': ak.combinations(loose_e, 2, axis=1, fields=['l1', 'l2']),
-        #            'mm': ak.combinations(loose_m, 2, axis=1, fields=['l1', 'l2'])}
-        #tt_pairs = {'mt': ak.cartesian({'t1': loose_m, 't2': loose_t}, axis=1),
-        #            'et': ak.cartesian({'t1': loose_e, 't2': loose_t}, axis=1),
-        #            'em': ak.cartesian({'t1': loose_e, 't2': loose_m}, axis=1),
-        #            'tt': ak.combinations(loose_t, 2, axis=1, fields=['t1', 't2'])}
-        
         # store auxillary objects
-        HLT_all, MET_all, trig_obj_all = events.HLT, events.MET, events.TrigObj
+        HLT_all, trig_obj_all = events.HLT, events.TrigObj
         
-        # store a reference to the full event list
         events_all = events
 
         # selections per category 
         for num, cat in self.categories.items():
-            
+
+            # per-category selections, weights
+            selections = analysis_tools.PackedSelection()
+            weights = analysis_tools.Weights(len(events_all))
+            weights.add('sample_weight', 
+                        np.ones(len(events_all))*sample_weight)
+
             # filter events based on lepton counts and trigger path
-            #events = events_all[init_mask]
-            trig_obj = trig_obj_all 
+            trig_obj, HLT = trig_obj_all, HLT_all 
             if (cat[:2]=='ee'): 
                 ll = ak.combinations(loose_e, 2, axis=1, fields=['l1', 'l2'])
             elif (cat[:2]=='mm'):
                 ll = ak.combinations(loose_m, 2, axis=1, fields=['l1', 'l2'])
+            
+            selections.add('trigger_path', 
+                           check_trigger_path(HLT, year, cat, self.cutflow))
+            selections.add('nlepton_veto', 
+                           lepton_count_veto(e_counts, m_counts, cat, self.cutflow))
+            
+            # build Z candidate, check trigger filter
+            ll = build_Z_cand(ll, self.cutflow)
+            selections.add('trigger_filter', 
+                           trigger_filter(ll, trig_obj, cat, self.cutflow))
+
+            # pair ditau candidate leptons
             if cat[2:]=='mt':
                 tt = ak.cartesian({'t1': loose_m, 't2': loose_t}, axis=1)
             elif cat[2:]=='et':
@@ -165,23 +174,21 @@ class Preselector(processor.ProcessorABC):
             elif cat[2:]=='tt':
                 tt = ak.combinations(loose_t, 2, axis=1, fields=['t1', 't2'])
 
-            # build 4l final state, apply dR criteria
+            # build 4l final state, mask nleptons + trigger path
             lltt = ak.cartesian({'ll': ll, 'tt': tt}, axis=1)
-            lltt = check_trigger_path(lltt, HLT_all, year, cat, self.cutflow, sync=self.sync)
+            mask = selections.all(*selections.names)
+            lltt = ak.fill_none(lltt.mask[mask], [])
+
+            # apply dR criteria, build ditau candidate
             lltt = dR_final_state(lltt, cat, self.cutflow)
-            lltt = lepton_count_veto(lltt, e_counts, m_counts, cat, self.cutflow)
-
-            # build Z candidate, check trigger filter
-            lltt = build_Z_cand(lltt, self.cutflow)
-            lltt = trigger_filter(lltt, trig_obj, cat, self.cutflow)
-
-            # build ditau candidate
             lltt = build_ditau_cand(lltt, cat, self.cutflow)
 
             # run fastmtt
-            good_events = ak.flatten(~ak.is_none(lltt, axis=1))
+            good_events = (ak.num(lltt, axis=1) == 1)
             events = events_all[good_events]
             lltt = lltt[good_events]
+            w = weights.weight()[good_events]
+            print('Weights', w)
             met = events.MET
             l1, l2 = ak.flatten(lltt['ll']['l1']), ak.flatten(lltt['ll']['l2'])
             t1, t2 = ak.flatten(lltt['tt']['t1']), ak.flatten(lltt['tt']['t2'])
@@ -207,39 +214,42 @@ class Preselector(processor.ProcessorABC):
                           ('tt', 't1'): '3', ('tt', 't2'): '4'}
             for leg, label in label_dict.items():
                 data_out = lltt[leg[0]][leg[1]]
-                self.output['pt'].fill(group='Signal', dataset=dataset,
-                                       category=cat, leg=label,
+                self.output['pt'].fill(group=group, dataset=dataset,
+                                       category=cat, leg=label, weight=w,
                                        pt=ak.flatten(data_out.pt))
-                self.output['eta'].fill(group='Signal', dataset=dataset,
-                                        category=cat, leg=label,
+                self.output['eta'].fill(group=group, dataset=dataset,
+                                        category=cat, leg=label, weight=w,
                                         eta=ak.flatten(data_out.eta))
-                self.output['phi'].fill(group='Signal', dataset=dataset,
-                                        category=cat, leg=label,
+                self.output['phi'].fill(group=group, dataset=dataset,
+                                        category=cat, leg=label, weight=w,
                                         phi=ak.flatten(data_out.phi))
-                self.output['mass'].fill(group='Signal', dataset=dataset,
-                                         category=cat, leg=label,
+                self.output['mass'].fill(group=group, dataset=dataset,
+                                         category=cat, leg=label, weight=w,
                                          mass=ak.flatten(data_out.mass))
                 
             mll = ak.flatten((lltt['ll']['l1']+lltt['ll']['l2']).mass)
-            print(mll)
-            self.output['mll'].fill(group='Signal', dataset=dataset,
-                                    category=cat, mll=mll)
+            self.output['mll'].fill(group=group, dataset=dataset,
+                                    category=cat, weight=w, mll=mll)
             mtt = ak.flatten((lltt['tt']['t1']+lltt['tt']['t2']).mass)
-            self.output['mtt'].fill(group='Signal', dataset=dataset,
-                                    category=cat, mtt=mtt)
+            self.output['mtt'].fill(group=group, dataset=dataset,
+                                    category=cat, weight=w, mtt=mtt)
             m4l = ak.flatten((lltt['ll']['l1']+lltt['ll']['l2']+
                               lltt['tt']['t1']+lltt['tt']['t2']).mass)
-            self.output['m4l'].fill(group='Signal', dataset=dataset,
-                                    category=cat, m4l=m4l)
+            self.output['m4l'].fill(group=group, dataset=dataset,
+                                    category=cat, weight=w, m4l=m4l)
 
-            self.output['mtt_corr'].fill(group='Signal', dataset=dataset,
-                                         category=cat, mtt_corr=masses['mtt_corr'])
-            self.output['mtt_cons'].fill(group='Signal', dataset=dataset,
-                                         category=cat, mtt_cons=masses['mtt_cons'])
-            self.output['m4l_corr'].fill(group='Signal', dataset=dataset,
-                                         category=cat, m4l_corr=masses['m4l_corr'])
-            self.output['m4l_cons'].fill(group='Signal', dataset=dataset,
-                                         category=cat, m4l_cons=masses['m4l_cons'])
+            self.output['mtt_corr'].fill(group=group, dataset=dataset, 
+                                         category=cat, weight=w, 
+                                         mtt_corr=masses['mtt_corr'])
+            self.output['mtt_cons'].fill(group=group, dataset=dataset,
+                                         category=cat, weight=w, 
+                                         mtt_cons=masses['mtt_cons'])
+            self.output['m4l_corr'].fill(group=group, dataset=dataset,
+                                         category=cat, weight=w, 
+                                         m4l_corr=masses['m4l_corr'])
+            self.output['m4l_cons'].fill(group=group, dataset=dataset,
+                                         category=cat, weight=w, 
+                                         m4l_cons=masses['m4l_cons'])
 
 
             # output raw, corrected, and constrained masses

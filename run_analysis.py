@@ -12,13 +12,19 @@ indir = "sample_lists/sample_yamls"
 
 # open the sample yaml file 
 #with open(os.path.join(indir, "GluGluToAToZhToLLTauTau_M300_2018.yaml"), 
-with open(os.path.join(indir, "AToZhToLLTauTau_M220_2018_samples.yaml"),
-#with open(os.path.join(indir, "MC_2018_DYJets.yaml"), 
+#with open(os.path.join(indir, "AToZhToLLTauTau_M220_2018_samples.yaml"),
+with open(os.path.join(indir, "MC_2018_DYJets.yaml"), 
          'r') as stream:
     try: 
         fileset = yaml.safe_load(stream)
     except yaml.YAMLError as exc: 
         print(exc)
+
+infile = "sample_lists/MC_2018.csv"
+sample_info = np.genfromtxt(infile, delimiter=',', names=True, comments='#',
+                            dtype=np.dtype([('f0', '<U9'), ('f1', '<U12'),
+                                            ('f2', '<U32'), ('f3', '<U250'),
+                                            ('f4', '<f16'), ('f5', '<f8')]))
 
 exc1_path = 'sync/princeton_all_exclusive.csv'
 exc2_path = 'sync/desy_all_exclusive.csv' 
@@ -26,6 +32,7 @@ out = processor.run_uproot_job(
     fileset,
     treename="Events",
     processor_instance=Preselector(sync=True, categories='all', 
+                                   sample_info=sample_info,
                                    exc1_path=exc1_path, exc2_path=exc2_path),
     executor=processor.futures_executor,
     executor_args={"schema": NanoAODSchema, "workers": 12},

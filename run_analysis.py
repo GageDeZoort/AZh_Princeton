@@ -33,6 +33,7 @@ out = processor.run_uproot_job(
     treename="Events",
     processor_instance=Preselector(sync=True, categories='all', 
                                    sample_info=sample_info,
+                                   meas_fake_factors=3,
                                    exc1_path=exc1_path, exc2_path=exc2_path),
     executor=processor.futures_executor,
     executor_args={"schema": NanoAODSchema, "workers": 12},

@@ -13,7 +13,7 @@ from lpcjobqueue import LPCCondorCluster
 from preselector import Preselector
 
 indir = "sample_lists/sample_yamls"
-source = 'MC_UL'
+source = 'MC'
 year = '2018'
 #with open(os.path.join(indir, "AToZhToLLTauTau_M220_2018_samples.yaml"), 'r') as stream:
 #with open(os.path.join(indir, "MC_2018_DYJets.yaml"), 'r') as stream: 
@@ -25,6 +25,7 @@ with open(os.path.join(indir, f'{source}_{year}.yaml'), 'r') as stream:
 
 tic = time.time()
 infiles = ['processors/preselector.py', 'selections/preselections.py',
+           'selections/selections_3l.py',
            'utils/cutflow.py', 'utils/print_events.py',
            f'sample_lists/{source}_{year}.csv']
 cluster = LPCCondorCluster(ship_env=False, transfer_input_files=infiles,

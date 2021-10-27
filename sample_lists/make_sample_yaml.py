@@ -7,13 +7,7 @@ import numpy as np
 parser = argparse.ArgumentParser()
 parser.add_argument('-s', '--source', default='MC')
 parser.add_argument('-y', '--year', default='')
-#parser.add_argument('-o', '--outdir', default='samples_all')
 args = parser.parse_args()
-
-eras = {'2016':'Summer16', '2017':'Fall17', '2018':'Autumn18'}
-if "UL" in args.source:
-    eras = {'2018':'Summer20UL18'}
-era = eras[args.year]
 
 # output to a yaml
 outfile = open("sample_yamls/{0}_{1}.yaml".format(args.source, args.year), "w+")

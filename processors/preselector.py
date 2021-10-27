@@ -14,6 +14,7 @@ ak.behavior.update(candidate.behavior)
 
 sys.path.append('/srv')
 from preselections import *
+from selections_3l import *
 from cutflow import Cutflow
 from print_events import EventPrinter
 
@@ -183,12 +184,13 @@ class Preselector(processor.ProcessorABC):
             lltt = dR_final_state(lltt, cat, self.cutflow)
             lltt = build_ditau_cand(lltt, cat, self.cutflow)
 
-            # run fastmtt
+            # identify good 4l final states
             good_events = (ak.num(lltt, axis=1) == 1)
             events = events_all[good_events]
             lltt = lltt[good_events]
             w = weights.weight()[good_events]
-            print('Weights', w)
+
+            # run fastmtt
             met = events.MET
             l1, l2 = ak.flatten(lltt['ll']['l1']), ak.flatten(lltt['ll']['l2'])
             t1, t2 = ak.flatten(lltt['tt']['t1']), ak.flatten(lltt['tt']['t2'])
@@ -250,30 +252,6 @@ class Preselector(processor.ProcessorABC):
             self.output['m4l_cons'].fill(group=group, dataset=dataset,
                                          category=cat, weight=w, 
                                          m4l_cons=masses['m4l_cons'])
-
-
-            # output raw, corrected, and constrained masses
-            #self.output['m_ll'] += self.accumulate((lltt['ll']['l1'] + lltt['ll']['l2']).mass)
-            #self.output['m_tt'] += self.accumulate((lltt['tt']['t1'] + lltt['tt']['t2']).mass)
-            #self.output['m_lltt'] += self.accumulate((lltt['ll']['l1'] + lltt['ll']['l2']
-            #                     + lltt['tt']['t1'] + lltt['tt']['t2']).mass)
-            #for mass, mass_vals in masses.items():
-            #    self.output[mass] += col_acc(mass_vals)
-            
-            # output four-vectors for each final state object
-            #label_dict = {('ll', 'l1'): '_1', ('ll', 'l2'): '_2',
-            #              ('tt', 't1'): '_3', ('tt', 't2'): '_4'}
-            #for leg, label in label_dict.items():                
-            #    data_out = lltt[leg[0]][leg[1]]
-            #    self.output['pt'+label] += self.accumulate(data_out.pt)
-            #    self.output['eta'+label] += self.accumulate(data_out.eta)
-            #    self.output['phi'+label] += self.accumulate(data_out.phi)
-            #    self.output['m'+label] += self.accumulate(data_out.mass)
-                            
-            #self.printer.print_selected_events(cat, events, lltt[good_events],
-            #                                   loose_e[good_events], loose_m[good_events],
-            #                                   loose_t[good_events])
-            
 
         return self.output
 

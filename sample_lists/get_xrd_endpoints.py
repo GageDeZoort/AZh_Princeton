@@ -10,7 +10,7 @@ parser.add_argument('-s', '--source', default='MC')
 parser.add_argument('-y', '--year', default='')
 args = parser.parse_args()
 
-# open sample file
+# open list of samples 
 fname = "sample_yamls/{0}_{1}.yaml".format(args.source, args.year)
 with open(fname) as stream:
    try:
@@ -18,15 +18,31 @@ with open(fname) as stream:
    except yaml.YAMLError as exc:
       print(exc)
 
-#xrdfs root://cmsxrootd-site.fnal.gov/ locate -d -m /store/mc/RunIISummer20UL18NanoAODv9/GluGluToAToZhToLLTauTau_M275_TuneCP5_13TeV-madgraphMLM-pythia8/NANOAODSIM/106X_upgrade2018_realistic_v16_L1v1-v2/250000/2A9F3D2B-1C6E-6348-9DF9-34F9B7E18588.root
+# open list of sample properties
+fname = "{0}_{1}.csv".format(args.source, args.year)
+props = np.genfromtxt(fname,delimiter=',', names=True, comments='#',
+                      dtype=np.dtype([('f0', '<U32'), ('f1', '<U32'), 
+                                      ('f2', '<U32'), ('f3', '<U250'), 
+                                      ('f4', '<f16'), ('f5', '<f8')]))
 
 for dataset, files in datafiles.items():
-
-    # get sample list
-    redirector = files[0].split('/store/')[0]
-    path = '/store/' + files[0].split('/store/')[1]
-    command = f'xrdfs {redirector} locate -d -m {path}'
-    print(f'>>> {command}')
-    exact_endpoint = subprocess.check_output(command, shell=True).decode()#.split('\n')[0]
-    print(dataset, exact_endpoint)
+   # get sample properties
+   dataset_name = dataset.replace(f'_{args.year}', '')
+   dataset_props = props[props['name']==dataset_name][0]
+   if (dataset_props['redirector'] != ''):
+      continue
+   
+   # get sample list
+   redirector = files[0].split('/store/')[0]
+   path = '/store/' + files[0].split('/store/')[1]
+   command = f'xrdfs {redirector} locate -d -m {path}'
+   print(f'>>> {command}')
+    
+   try:
+      exact_endpoint = subprocess.check_output(command, shell=True).decode()
+      print(dataset, exact_endpoint)
+   except subprocess.CalledProcessError as e:
+      print(e.returncode)
+      print(e.output)
+      
     

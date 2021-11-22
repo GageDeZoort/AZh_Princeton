@@ -30,17 +30,19 @@ class Preselector(processor.ProcessorABC):
         self.info = sample_info
         self.cutflow = Cutflow()
         if categories == 'all':
-            self.categories = {1: 'eeet', 2: 'eemt', 3: 'eett', 4: 'eeem',
+            self.categories = {1: 'eeet', 2: 'eemt', 3: 'eett', 4: 'eeem', 
                                5: 'mmet', 6: 'mmmt', 7: 'mmtt', 8: 'mmem'}
-        else: self.categories = {i:cat for i, cat in enumerate(categories)}
-        self.printer = EventPrinter(exc1_path=exc1_path, exc2_path=exc2_path)
+        else: 
+            self.categories = {i:cat for i, cat in enumerate(categories)}
+        self.printer = EventPrinter(exc1_path=exc1_path, 
+                                    exc2_path=exc2_path)
 
         # bin variables by dataset, category, and leg
         dataset_axis = hist.Cat("dataset", "")
         category_axis = hist.Cat("category", "")
         group_axis = hist.Cat("group", "")
         leg_axis = hist.Cat("leg", "")
-
+                                                                           
         # bin variables themselves 
         pt_hist = hist.Hist("Counts", group_axis, dataset_axis, 
                             category_axis, leg_axis, 
@@ -54,20 +56,31 @@ class Preselector(processor.ProcessorABC):
         mass_hist = hist.Hist("Counts", group_axis, dataset_axis, 
                               category_axis, leg_axis, 
                               hist.Bin("mass", "$m$", 40, 0, 20))
-        mll_hist = hist.Hist("Counts", group_axis, dataset_axis, category_axis, 
+        mll_hist = hist.Hist("Counts", group_axis, 
+                             dataset_axis, category_axis, 
                              hist.Bin("mll", "$m_{ll}$", 30, 60, 120))
-        mtt_hist = hist.Hist("Counts", group_axis, dataset_axis, category_axis,
+        mtt_hist = hist.Hist("Counts", group_axis, 
+                             dataset_axis, category_axis,
                              hist.Bin("mtt", "$m_{tt}$", 40, 0, 200)) 
-        mtt_corr_hist =  hist.Hist("Counts", group_axis, dataset_axis, category_axis, 
-                                   hist.Bin("mtt_corr", "$m_{tt}^{corr}$", 40, 0, 200))
-        mtt_cons_hist =  hist.Hist("Counts", group_axis, dataset_axis, category_axis,
-                                   hist.Bin("mtt_cons", "$m_{tt}^{cons}$", 40, 0, 200))
-        m4l_hist = hist.Hist("Counts", group_axis, dataset_axis, category_axis,  
+        mtt_corr_hist =  hist.Hist("Counts", group_axis, 
+                                   dataset_axis, category_axis, 
+                                   hist.Bin("mtt_corr", "$m_{tt}^{corr}$", 
+                                            40, 0, 200))
+        mtt_cons_hist =  hist.Hist("Counts", group_axis, 
+                                   dataset_axis, category_axis,
+                                   hist.Bin("mtt_cons", "$m_{tt}^{cons}$", 
+                                            40, 0, 200))
+        m4l_hist = hist.Hist("Counts", group_axis, 
+                             dataset_axis, category_axis,  
                              hist.Bin("m4l", "$m_{4l}$", 80, 0, 400))
-        m4l_corr_hist = hist.Hist("Counts", group_axis, dataset_axis, category_axis,
-                                  hist.Bin("m4l_corr", "$m_{4l}^{corr}$", 80, 0, 400))
-        m4l_cons_hist =  hist.Hist("Counts", group_axis, dataset_axis, category_axis, 
-                                   hist.Bin("m4l_cons", "$m_{4l}^{cons}$", 80, 0, 400))
+        m4l_corr_hist = hist.Hist("Counts", group_axis, 
+                                  dataset_axis, category_axis,
+                                  hist.Bin("m4l_corr", "$m_{4l}^{corr}$", 
+                                           80, 0, 400))
+        m4l_cons_hist =  hist.Hist("Counts", group_axis,
+                                   dataset_axis, category_axis, 
+                                   hist.Bin("m4l_cons", "$m_{4l}^{cons}$", 
+                                            80, 0, 400))
         
         self._accumulator = processor.dict_accumulator(
             {'evt': col_acc(np.array([])), 
@@ -113,15 +126,15 @@ class Preselector(processor.ProcessorABC):
         group = properties['group'][0]
         nevts, xsec = properties['nevts'][0], properties['xsec'][0]
         sample_weight = lumi[year] * xsec / nevts 
-        
+        if (group=='data'): sample_weight=1
+        print('sample weight', sample_weight)
+
         # initialize global selections
         global_selections = analysis_tools.PackedSelection()    
         
         # apply initial event filters
         filter_MET(events, global_selections, self.cutflow)
         filter_PV(events, global_selections, self.cutflow)
-        
-        # store a reference to the full event list
         global_mask = global_selections.all(*global_selections.names)
         events = events[global_mask]
 
@@ -136,14 +149,13 @@ class Preselector(processor.ProcessorABC):
         
         # store auxillary objects
         HLT_all, trig_obj_all = events.HLT, events.TrigObj
-        
         events_all = events
 
         # selections per category 
         for num, cat in self.categories.items():
 
-            # per-category selections, weights
-            selections = analysis_tools.PackedSelection()
+            # per-category preselections, weights
+            preselections = analysis_tools.PackedSelection()
             weights = analysis_tools.Weights(len(events_all))
             weights.add('sample_weight', 
                         np.ones(len(events_all))*sample_weight)
@@ -151,19 +163,24 @@ class Preselector(processor.ProcessorABC):
             # filter events based on lepton counts and trigger path
             trig_obj, HLT = trig_obj_all, HLT_all 
             if (cat[:2]=='ee'): 
-                ll = ak.combinations(loose_e, 2, axis=1, fields=['l1', 'l2'])
+                ll = ak.combinations(loose_e, 2, axis=1, 
+                                     fields=['l1', 'l2'])
             elif (cat[:2]=='mm'):
-                ll = ak.combinations(loose_m, 2, axis=1, fields=['l1', 'l2'])
+                ll = ak.combinations(loose_m, 2, axis=1, 
+                                     fields=['l1', 'l2'])
             
-            selections.add('trigger_path', 
-                           check_trigger_path(HLT, year, cat, self.cutflow))
-            selections.add('nlepton_veto', 
-                           lepton_count_veto(e_counts, m_counts, cat, self.cutflow))
+            preselections.add('trigger_path', 
+                              check_trigger_path(HLT, year, 
+                                                 cat, self.cutflow))
+            preselections.add('nlepton_veto', 
+                              lepton_count_veto(e_counts, m_counts, 
+                                                cat, self.cutflow))
             
             # build Z candidate, check trigger filter
             ll = build_Z_cand(ll, self.cutflow)
-            selections.add('trigger_filter', 
-                           trigger_filter(ll, trig_obj, cat, self.cutflow))
+            preselections.add('trigger_filter', 
+                              trigger_filter(ll, trig_obj, cat, 
+                                             self.cutflow))
 
             # pair ditau candidate leptons
             if cat[2:]=='mt':
@@ -177,11 +194,11 @@ class Preselector(processor.ProcessorABC):
 
             # build 4l final state, mask nleptons + trigger path
             lltt = ak.cartesian({'ll': ll, 'tt': tt}, axis=1)
-            mask = selections.all(*selections.names)
+            mask = preselections.all(*preselections.names)
             lltt = ak.fill_none(lltt.mask[mask], [])
 
             # apply dR criteria, build ditau candidate
-            lltt = dR_final_state(lltt, cat, self.cutflow)
+            lltt = dR_lltt(lltt, cat, self.cutflow)
             lltt = build_ditau_cand(lltt, cat, self.cutflow)
 
             # identify good 4l final states
@@ -190,6 +207,19 @@ class Preselector(processor.ProcessorABC):
             lltt = lltt[good_events]
             w = weights.weight()[good_events]
 
+            # tighter selections
+            selections = analysis_tools.PackedSelection()
+            llttj = ak.cartesian({'lltt': lltt,
+                                  'j': loose_j[good_events]}, axis=1)
+            selections.add('dR_llttj',
+                           dR_llttj(llttj, cutflow))
+            selections.add('higgsLT',
+                           higgsLT(lltt, cat, cutflow))
+            selections.add('iso_ID',
+                           iso_ID(lltt, cat, cutflow))
+            tight_mask = selections.all(*selections.names)
+            lltt_tight = lltt[tight_mask]
+            
             # run fastmtt
             met = events.MET
             l1, l2 = ak.flatten(lltt['ll']['l1']), ak.flatten(lltt['ll']['l2'])
@@ -207,6 +237,7 @@ class Preselector(processor.ProcessorABC):
                              ak.to_numpy(met.covXX), ak.to_numpy(met.covXY), 
                              ak.to_numpy(met.covXY), ak.to_numpy(met.covYY),
                              constrain=True)
+
 
             # output event-level info
             self.output["evt"] += self.accumulate(events.event, flatten=False)

@@ -7,7 +7,8 @@ class Cutflow:
         self.objects = {
             'electron': {},
             'muon': {},
-            'tau': {}
+            'tau': {},
+            'jet': {}
         }
         
     def get_cutflow(self):

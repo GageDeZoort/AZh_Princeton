@@ -13,11 +13,11 @@ from lpcjobqueue import LPCCondorCluster
 from preselector import Preselector
 
 indir = "sample_lists/sample_yamls"
-source = 'MC'
 year = '2018'
+data = True
 #with open(os.path.join(indir, "AToZhToLLTauTau_M220_2018_samples.yaml"), 'r') as stream:
 #with open(os.path.join(indir, "MC_2018_DYJets.yaml"), 'r') as stream: 
-with open(os.path.join(indir, f'{source}_{year}.yaml'), 'r') as stream:
+with open(os.path.join(indir, f'MC_{year}.yaml'), 'r') as stream:
    try: 
       fileset = yaml.safe_load(stream)
    except yaml.YAMLError as exc: 
@@ -27,7 +27,33 @@ tic = time.time()
 infiles = ['processors/preselector.py', 'selections/preselections.py',
            'selections/selections_3l.py',
            'utils/cutflow.py', 'utils/print_events.py',
-           f'sample_lists/{source}_{year}.csv']
+           f'sample_lists/MC_{year}.csv']
+
+infile = f"sample_lists/MC_{year}.csv"
+sample_info = np.genfromtxt(infile, delimiter=',', names=True, comments='#',
+                            dtype=np.dtype([('f0', '<U32'), ('f1', '<U32'),
+                                            ('f2', '<U32'), ('f3', '<U250'),
+                                            ('f4', '<f16'), ('f5', '<f8')]))
+
+if (data):
+   infiles.append(f'sample_lists/data_{year}.csv')
+   with open(os.path.join(indir, f'data_{year}.yaml'), 'r') as stream:
+      try:
+         datafileset = yaml.safe_load(stream)
+      except yaml.YAMLError as exc:
+         print(exc)
+
+   fileset = {**fileset, **datafileset}
+   infile = f"sample_lists/data_{year}.csv"
+   data_sample_info = np.genfromtxt(infile, delimiter=',', names=True, comments='#',
+                                    dtype=np.dtype([('f0', '<U32'), ('f1', '<U32'),
+                                                    ('f2', '<U32'), ('f3', '<U250'),
+                                                    ('f4', '<f16'), ('f5', '<f8')]))
+   sample_info = np.append(sample_info, data_sample_info)
+
+print(sample_info)
+
+
 cluster = LPCCondorCluster(ship_env=False, transfer_input_files=infiles,
                            scheduler_options={"dashboard_address": ":8787"})
 
@@ -37,13 +63,6 @@ client = Client(cluster)
 
 print("Waiting for at least one worker...")
 client.wait_for_workers(1)
-
-infile = f"sample_lists/{source}_{year}.csv"
-sample_info = np.genfromtxt(infile, delimiter=',', names=True, comments='#',
-                            dtype=np.dtype([('f0', '<U32'), ('f1', '<U32'),
-                                            ('f2', '<U32'), ('f3', '<U250'),
-                                            ('f4', '<f16'), ('f5', '<f8')]))
-print(sample_info)
 
 exe_args = {
     'client': client,
@@ -87,4 +106,4 @@ print(f"Events/s: {metrics['entries'] / elapsed:.0f}")
 #outdir = '/eos/uscms/store/user/jdezoort/AZh_output'
 outdir = '/srv'
 print(hists)
-util.save(hists, os.path.join(outdir, f'{source}_{year}_dask.coffea'))
+util.save(hists, os.path.join(outdir, f'MC_{year}_dask.coffea'))

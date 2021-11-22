@@ -3,9 +3,9 @@ signal,AToZhToLLTauTauM220,/xrootd.unl.edu/,/AToZhToLLTauTau_4f_LO_M-220_13TeV-m
 ttbar,TTTo2L2Nu,/cmsxrootd-site3.fnal.gov:1094/,/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,64310000,87.3
 ttbar,TTToSemiLeptonic,/pubxrootd.hep.wisc.edu:1094/,/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,100790000,365.34
 ttbar,TTToHadronic,/cmsxrootd-site3.fnal.gov:1094/,/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,128640000,377.96
-ttbarZ,ttZJets,/cmsxrootd-site3.fnal.gov:1094/,/ttZJets_TuneCP5_13TeV_madgraphMLM_pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21_ext1-v1/NANOAODSIM,22646257,0.259
+ttbarZ,ttZJets,/cmsxrootd-site3.fnal.gov:1093/,/ttZJets_TuneCP5_13TeV_madgraphMLM_pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21_ext1-v1/NANOAODSIM,22646257,0.259
 #ttbar,TTWJetsToLNu,//,/TTWJetsToLNu_TuneCP5_13TeV-amcatnloFXFX-madspin-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21_ext1-v1/NANOAODSIM,4911941,0.2125
-dyjets,DYJetsToLL,/cmsxrootd-site3.fnal.gov:1094/,/DYJetsToLL_M-50_TuneCP5_13TeV-madgraphMLM-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,100194597,6077.22
+dyjets,DYJetsToLL,/cmsxrootd-site1.fnal.gov:1093/,/DYJetsToLL_M-50_TuneCP5_13TeV-madgraphMLM-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,100194597,6077.22
 diboson,ZZTo2e2mu,/xrootd.rcac.purdue.edu:1094/,/GluGluToContinToZZTo2e2mu_13TeV_TuneCP5_MCFM701_pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,500000,0.0031942
 diboson,ZZTo2e2tau,/cmsxrootd-site3.fnal.gov:1094/,/GluGluToContinToZZTo2e2tau_13TeV_TuneCP5_MCFM701_pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,500000,0.0031942
 diboson,ZZTo2mu2tau,/xrootd.rcac.purdue.edu:1094/,/GluGluToContinToZZTo2mu2tau_13TeV_TuneCP5_MCFM701_pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,496000,0.0031942
@@ -21,7 +21,7 @@ triboson,WWZ,/xrootd.rcac.purdue.edu:1094/,/WWZ_TuneCP5_13TeV-amcatnlo-pythia8/R
 triboson,ZZZ,/xrootd.rcac.purdue.edu:1094/,/ZZZ_TuneCP5_13TeV-amcatnlo-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21_ext1-v1/NANOAODSIM,250000,0.01398
 triboson,WZZ,/xrootd.rcac.purdue.edu:1094/,/WZZ_TuneCP5_13TeV-amcatnlo-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21_ext1-v1/NANOAODSIM,250000,0.05565
 smhiggs,GluGluHToTauTau,/cmsxrootd-site3.fnal.gov:1094/,/GluGluHToTauTau_M125_13TeV_powheg_pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,12575000,3.046 #48.58*0.0627
-smhiggs,VBFHToTauTau,/cmsxrootd-site3.fnal.gov:1094/,/VBFHToTauTau_M125_13TeV_powheg_pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21_ext1-v1/NANOAODSIM,3000000,0.2371 #3.782*0.0627
+smhiggs,VBFHToTauTau,/cmsxrootd-site3.fnal.gov:1093/,/VBFHToTauTau_M125_13TeV_powheg_pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21_ext1-v1/NANOAODSIM,3000000,0.2371 #3.782*0.0627
 smhiggs,WminusHToTauTau,/cmsxrootd-site3.fnal.gov:1094/,/WminusHToTauTau_M125_13TeV_powheg_pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,3896200,0.0334 #0.5328*0.0627
 smhiggs,WplusHToTauTau,/cmsxrootd-site3.fnal.gov:1094/,/WplusHToTauTau_M125_13TeV_powheg_pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,3784600,0.0527 #0.8400*0.0627
 smhiggs,ZHToTauTau,/pubxrootd.hep.wisc.edu:1094/,/ZHToTauTau_M125_13TeV_powheg_pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,4761815,0.0554 #0.884*0.0627

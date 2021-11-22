@@ -21,6 +21,8 @@ def filter_PV(events, selections, cutflow):
     selections.add('pv_filter', pv_filter)
 
 def loose_electrons(electrons, cutflow):
+    cutflow.fill_object(electrons, 'init', 'electron')
+    
     loose_e = electrons[(np.abs(electrons.dxy) < 0.045) &
                         (np.abs(electrons.dz)  < 0.2)]
     cutflow.fill_object(loose_e, 'dxy<0.045&&dz<0.2', 'electron')
@@ -44,6 +46,8 @@ def loose_electrons(electrons, cutflow):
     return loose_e
 
 def loose_muons(muons, cutflow):
+    cutflow.fill_object(muons, 'init', 'muon')
+
     loose_m = muons[((muons.isTracker) | (muons.isGlobal))]
     cutflow.fill_object(loose_m, 'tracker|global', 'muon')
     
@@ -64,6 +68,8 @@ def loose_muons(muons, cutflow):
     return loose_m
 
 def loose_taus(taus, cutflow):
+    cutflow.fill_object(taus, 'init', 'tau')
+
     loose_t = taus[(taus.pt > 20)]
     cutflow.fill_object(loose_t, 'pt>20', 'tau')
 
@@ -90,6 +96,19 @@ def loose_taus(taus, cutflow):
     cutflow.fill_object(loose_t, 'idDeepTau2017v2p1VSe>3', 'tau')
 
     return loose_t
+
+def loose_jets(jet, cutflow):
+    cutflow.fill_object(jet, 'init', 'jet')
+
+    loose_j = jet[(jet.pt > 30)]
+    cutflow.fill_object(loose_j, 'pt>30', 'jet')
+    
+    loose_j = loose_j[(np.abs(loose_j.eta) < 4.7)]
+    cutflow.fill_object(loose_j, '|eta|<4.7', 'jet')
+
+    loose_j = loose_j[(loose_j.jetId > 0)]
+    cutflow.fill_object(loose_j, 'jetId>0', 'jet')
+    return loose_j
 
 def check_trigger_path(HLT, year, cat,
                        cutflow, sync=False):
@@ -141,7 +160,7 @@ def build_Z_cand(ll, cutflow):
     cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(ll, axis=1))), 'Z_cand')
     return ll[~ak.is_none(ll, axis=1)] #lltt #ak.fill_none(lltt, [])
 
-def dR_final_state(lltt, cat, cutflow):
+def dR_lltt(lltt, cat, cutflow):
     dR_select = {'ee': 0.3, 'em': 0.3, 'mm': 0.3, 'me': 0.3,
                  'et': 0.5, 'mt': 0.5, 'tt': 0.5}
     l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']

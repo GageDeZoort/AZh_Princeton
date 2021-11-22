@@ -44,5 +44,15 @@ for dataset, files in datafiles.items():
    except subprocess.CalledProcessError as e:
       print(e.returncode)
       print(e.output)
+      redirector = 'root://cms-xrd-global.cern.ch/'
+      command = f'xrdfs {redirector} locate -d -m {path}'
+      print('trying new command:')
+      print(f'>>> {command}')
+      try:
+         exact_endpoint = subprocess.check_output(command, shell=True).decode()
+         print(dataset, exact_endpoint)
+      except subprocess.CalledProcessError as e:
+         print(e.returncode)
+         print(e.output)
+
       
-    

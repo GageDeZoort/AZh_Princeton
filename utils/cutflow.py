@@ -4,13 +4,8 @@ import awkward as ak
 class Cutflow:
     def __init__(self):
         self.cutflow = {}
-        self.objects = {
-            'electron': {},
-            'muon': {},
-            'tau': {},
-            'jet': {}
-        }
-        
+        self.objects = {}
+     
     def get_cutflow(self):
         return {
             'selections': self.cutflow,
@@ -23,11 +18,14 @@ class Cutflow:
     def get_yields(self):
         return list(self.cutflow.values())
     
-    def fill_cutflow(self, counts, label):
+    def fill(self, counts, label):
         if label in self.cutflow:
             self.cutflow[label] += counts
         else:
             self.cutflow[label] = counts
+    
+    def fill_cutflow(self, counts, label):
+        self.cutflow[label] = counts
 
     def fill_event_cutflow(self, events, label):
         cut_yield = len(events[~ak.is_none(events, axis=0)])
@@ -44,20 +42,30 @@ class Cutflow:
         else:
             self.cutflow[label] = cut_yield
 
-    def fill_object(self, objects, label, obj):
-        #cut_yield = len(objects[ak.num(objects, axis=1) > 0])
-        cut_yield = ak.sum(ak.num(objects))
+    def fill_object(self, array, label, obj):
+        count = ak.sum(ak.num(array, axis=1))
+        if obj not in self.objects.keys():
+            self.objects[obj] = {}
         if label in self.objects[obj]:
-            self.objects[obj][label] += cut_yield
+            self.objects[obj][label] += count
         else:
-            self.objects[obj][label] = cut_yield
+            self.objects[obj][label] = count
             
-    def print_cutflow(self):
-        print("----- Selection Yields -----")
-        print("Overall:")
+    def fill_mask(self, count, label, obj):
+        if obj not in self.objects.keys():
+            self.objects[obj] = {}
+        if label in self.objects[obj]:
+            self.objects[obj][label] += count
+        else:
+            self.objects[obj][label] = count
+            
+    def __str__(self):
+        output = "----- Selection Yields -----\n"
+        output += "Overall:\n"
         for cut, count in self.cutflow.items():
-            print(" - {}: {}".format(cut, count))
+            output += " - {}: {}\n".format(cut, count)
         for obj in self.objects:
-            print("{}:".format(obj))
+            output += "{}:\n".format(obj)
             for cut, count in self.objects[obj].items():
-                print(" - {}: {}".format(cut, count))
+                output += " - {}: {}\n".format(cut, count)
+        return output

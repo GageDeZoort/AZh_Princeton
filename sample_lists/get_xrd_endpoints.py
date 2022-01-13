@@ -27,11 +27,13 @@ props = np.genfromtxt(fname,delimiter=',', names=True, comments='#',
 
 for dataset, files in datafiles.items():
    # get sample properties
+   print(dataset)
    dataset_name = dataset.replace(f'_{args.year}', '')
    dataset_props = props[props['name']==dataset_name][0]
    if (dataset_props['redirector'] != ''):
       continue
-   
+   #if ('AToZh' not in dataset): continue
+
    # get sample list
    redirector = files[0].split('/store/')[0]
    path = '/store/' + files[0].split('/store/')[1]

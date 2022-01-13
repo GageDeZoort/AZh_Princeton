@@ -113,13 +113,14 @@ class Preselector(processor.ProcessorABC):
         self.output = self.accumulator.identity()
         
         print('...processing', events.metadata['dataset'])
+        filename = events.metadata['filename']
 
         # organize dataset, year, luminosity
         dataset = events.metadata['dataset']
         year = dataset.split('_')[-1]
+        is_UL = True if 'RunIISummer20UL18' in filename else False
         eras = {'2016': 'Summer16', '2017': 'Fall17', '2018': 'Autumn18'}
         lumi = {'2016': 35.9, '2017': 41.5, '2018': 59.7}
-        
 
         # get sample properties
         properties = self.info[self.info['name']==dataset.split('_')[:-1]]
@@ -127,7 +128,6 @@ class Preselector(processor.ProcessorABC):
         nevts, xsec = properties['nevts'][0], properties['xsec'][0]
         sample_weight = lumi[year] * xsec / nevts 
         if (group=='data'): sample_weight=1
-        print('sample weight', sample_weight)
 
         # initialize global selections
         global_selections = analysis_tools.PackedSelection()    
@@ -141,7 +141,7 @@ class Preselector(processor.ProcessorABC):
         # grab loosely defined leptons 
         loose_e = loose_electrons(events.Electron, self.cutflow)
         loose_m = loose_muons(events.Muon, self.cutflow)
-        loose_t = loose_taus(events.Tau, self.cutflow)
+        loose_t = loose_taus(events.Tau, self.cutflow, is_UL=is_UL)
         
         # count the number of leptons per event
         e_counts = ak.num(loose_e)
@@ -168,7 +168,6 @@ class Preselector(processor.ProcessorABC):
             elif (cat[:2]=='mm'):
                 ll = ak.combinations(loose_m, 2, axis=1, 
                                      fields=['l1', 'l2'])
-            
             preselections.add('trigger_path', 
                               check_trigger_path(HLT, year, 
                                                  cat, self.cutflow))
@@ -191,34 +190,36 @@ class Preselector(processor.ProcessorABC):
                 tt = ak.cartesian({'t1': loose_e, 't2': loose_m}, axis=1)
             elif cat[2:]=='tt':
                 tt = ak.combinations(loose_t, 2, axis=1, fields=['t1', 't2'])
-
+                
             # build 4l final state, mask nleptons + trigger path
             lltt = ak.cartesian({'ll': ll, 'tt': tt}, axis=1)
             mask = preselections.all(*preselections.names)
-            lltt = ak.fill_none(lltt.mask[mask], [])
+            lltt = lltt.mask[mask]
+            lltt = ak.fill_none(lltt, [])
+            if ak.sum(ak.num(lltt, axis=1))==0: continue
 
             # apply dR criteria, build ditau candidate
             lltt = dR_lltt(lltt, cat, self.cutflow)
             lltt = build_ditau_cand(lltt, cat, self.cutflow)
 
             # identify good 4l final states
-            good_events = (ak.num(lltt, axis=1) == 1)
+            good_events = ak.fill_none((ak.num(lltt, axis=1) == 1), False)
             events = events_all[good_events]
             lltt = lltt[good_events]
             w = weights.weight()[good_events]
 
             # tighter selections
-            selections = analysis_tools.PackedSelection()
-            llttj = ak.cartesian({'lltt': lltt,
-                                  'j': loose_j[good_events]}, axis=1)
-            selections.add('dR_llttj',
-                           dR_llttj(llttj, cutflow))
-            selections.add('higgsLT',
-                           higgsLT(lltt, cat, cutflow))
-            selections.add('iso_ID',
-                           iso_ID(lltt, cat, cutflow))
-            tight_mask = selections.all(*selections.names)
-            lltt_tight = lltt[tight_mask]
+            #selections = analysis_tools.PackedSelection()
+            #llttj = ak.cartesian({'lltt': lltt,
+            #                      'j': loose_j[good_events]}, axis=1)
+            #selections.add('dR_llttj',
+            #               dR_llttj(llttj, cutflow))
+            #selections.add('higgsLT',
+            #               higgsLT(lltt, cat, cutflow))
+            #selections.add('iso_ID',
+            #               iso_ID(lltt, cat, cutflow))
+            #tight_mask = selections.all(*selections.names)
+            #lltt_tight = lltt[tight_mask]
             
             # run fastmtt
             met = events.MET

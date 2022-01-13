@@ -1,0 +1,13 @@
+#group,name,redirector,dataset,nevts,xsec
+data,EGamma,/cmsxrootd-site3.fnal.gov:1093/,/EGamma/Run2018A-UL2018_MiniAODv2_NanoAODv9-v1/NANOAOD,339013231,1
+data,EGamma,/cmsxrootd-site3.fnal.gov:1093/,/EGamma/Run2018B-UL2018_MiniAODv2_NanoAODv9-v1/NANOAOD,153792795,1
+data,EGamma,/cmsxrootd-site3.fnal.gov:1093/,/EGamma/Run2018C-UL2018_MiniAODv2_NanoAODv9-v1/NANOAOD,147827904,1
+data,EGamma,/cmsxrootd-site3.fnal.gov:1093/,/EGamma/Run2018D-UL2018_MiniAODv2_NanoAODv9-v3/NANOAOD,751952860,1
+data,SingleMuon,/cmsxrootd-site3.fnal.gov:1093/,/SingleMuon/Run2018A-UL2018_MiniAODv2_NanoAODv9-v1/NANOAOD,241108630,1
+data,SingleMuon,/cmsxrootd-site3.fnal.gov:1093/,/SingleMuon/Run2018B-UL2018_MiniAODv2_NanoAODv9-v2/NANOAOD,119918017,1
+data,SingleMuon,/cmsxrootd-site3.fnal.gov:1093/,/SingleMuon/Run2018C-UL2018_MiniAODv2_NanoAODv9-v2/NANOAOD,109986009,1
+data,SingleMuon,/cmsxrootd-site3.fnal.gov:1093/,/SingleMuon/Run2018D-UL2018_MiniAODv2_NanoAODv9-v1/NANOAOD,513909894,1
+data,DoubleMuon,/cmsxrootd-site2.fnal.gov:1093/,/DoubleMuon/Run2018A-UL2018_MiniAODv2_NanoAODv9-v1/NANOAOD,75491789,1
+data,DoubleMuon,/cmsxrootd-site2.fnal.gov:1093/,/DoubleMuon/Run2018B-UL2018_MiniAODv2_NanoAODv9-v1/NANOAOD,35057758,1
+data,DoubleMuon,/cmsxrootd-site2.fnal.gov:1093/,/DoubleMuon/Run2018C-UL2018_MiniAODv2_NanoAODv9-v1/NANOAOD,34565869,1
+data,DoubleMuon,/cmsxrootd-site2.fnal.gov:1093/,/DoubleMuon/Run2018D-UL2018_MiniAODv2_NanoAODv9-v2/NANOAOD,168600679,1

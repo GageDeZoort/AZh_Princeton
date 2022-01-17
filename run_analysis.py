@@ -20,6 +20,8 @@ with open(os.path.join(indir, "MC_2018_DYJets.yaml"),
     except yaml.YAMLError as exc: 
         print(exc)
 
+fileset={'HZJHToWW_2018': ['root://cmsxrootd-site3.fnal.gov:1094//store/mc/RunIIAutumn18NanoAODv7/HZJ_HToWW_M125_13TeV_powheg_jhugen714_pythia8_TuneCP5/NANOAODSIM/Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/120000/0AAB78CB-7799-8C43-8149-2A220B27CE93.root']}
+
 infile = "sample_lists/MC_2018.csv"
 sample_info = np.genfromtxt(infile, delimiter=',', names=True, comments='#',
                             dtype=np.dtype([('f0', '<U9'), ('f1', '<U12'),
@@ -41,14 +43,14 @@ out = processor.run_uproot_job(
 lumi = np.array(out['lumi'].value, dtype=int)
 run = np.array(out['run'].value, dtype=int)
 evt = np.array(out['evt'].value, dtype=int)
-cat = out['cat'].value
+#cat = out['cat'].value
 
-sync_file = open(exc1_path.split('exclusive')[0]+'.csv', 'w')
-sync_file.write('run,lumi,evtid,cat\n')
-for i, e in enumerate(evt):
-   sync_file.write('{0:d},{1:d},{2:d},{3}\n'
-                   .format(run[i], lumi[i], evt[i], cat[i]))
-sync_file.close()
+#sync_file = open(exc1_path.split('exclusive')[0]+'.csv', 'w')
+#sync_file.write('run,lumi,evtid,cat\n')
+#for i, e in enumerate(evt):
+#   sync_file.write('{0:d},{1:d},{2:d},{3}\n'
+#                   .format(run[i], lumi[i], evt[i]))
+#sync_file.close()
 
-outdir = '/eos/uscms/store/user/jdezoort/AZh_output'
-util.save(out, os.path.join(outdir, 'AZh_220GeV_2018.coffea'))
+#outdir = '/eos/uscms/store/user/jdezoort/AZh_output'
+#util.save(out, os.path.join(outdir, 'AZh_220GeV_2018.coffea'))

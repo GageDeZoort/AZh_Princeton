@@ -14,7 +14,6 @@ ak.behavior.update(candidate.behavior)
 
 sys.path.append('/srv')
 from preselections import *
-from selections_3l import *
 from cutflow import Cutflow
 from print_events import EventPrinter
 

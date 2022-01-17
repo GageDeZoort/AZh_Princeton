@@ -8,8 +8,8 @@ def filter_MET(events, selections, cutflow):
                   flags.HBHENoiseIsoFilter &
                   flags.EcalDeadCellTriggerPrimitiveFilter &
                   flags.BadPFMuonFilter & flags.ecalBadCalibFilter)
-    cutflow.fill_event_cutflow(events, 'MET filter')
     selections.add('met_filter', MET_filter)
+    cutflow.fill(ak.sum(MET_filter), 'met_filter')
 
 
 def filter_PV(events, selections, cutflow):
@@ -17,103 +17,117 @@ def filter_PV(events, selections, cutflow):
     pv_filter = ((PV.ndof > 4) &
                  (abs(PV.z) < 24) &
                  (np.sqrt(PV.x**2 + PV.y**2) < 2))
-    cutflow.fill_event_cutflow(events, 'PV filter')
     selections.add('pv_filter', pv_filter)
+    cutflow.fill(ak.sum(pv_filter), 'pv_filter')
 
 def loose_electrons(electrons, cutflow):
-    cutflow.fill_object(electrons, 'init', 'electron')
+    obj = 'loose electrons'
+    cutflow.fill_object(electrons, 'init', obj)
     
     loose_e = electrons[(np.abs(electrons.dxy) < 0.045) &
                         (np.abs(electrons.dz)  < 0.2)]
-    cutflow.fill_object(loose_e, 'dxy<0.045&&dz<0.2', 'electron')
+    cutflow.fill_object(loose_e, 'dxy<0.045&&dz<0.2', obj)
 
     loose_e = loose_e[(loose_e.mvaFall17V2noIso_WP90 > 0.5)]
-    cutflow.fill_object(loose_e, 'mvaFall17V2noIsoWP90', 'electron')
+    cutflow.fill_object(loose_e, 'mvaFall17V2noIsoWP90', obj)
                                 
     loose_e = loose_e[(loose_e.lostHits < 2)]
-    cutflow.fill_object(loose_e, 'lostHits<2', 'electron')
+    cutflow.fill_object(loose_e, 'lostHits<2', obj)
     
     loose_e = loose_e[(loose_e.convVeto)]
-    cutflow.fill_object(loose_e, 'convVeto', 'electron')
+    cutflow.fill_object(loose_e, 'convVeto', obj)
     
     loose_e = loose_e[(loose_e.pt > 10)]
-    cutflow.fill_object(loose_e, 'pt>10', 'electron')
+    cutflow.fill_object(loose_e, 'pt>10', obj)
     
     loose_e = loose_e[(np.abs(loose_e.eta) < 2.5)]
-    cutflow.fill_object(loose_e, '|eta|<2.5', 'electron')
+    cutflow.fill_object(loose_e, '|eta|<2.5', obj)
     
     #(electrons.pfRelIso03_all < 0.2) &
     return loose_e
 
 def loose_muons(muons, cutflow):
-    cutflow.fill_object(muons, 'init', 'muon')
+    obj = 'loose muons'
+    cutflow.fill_object(muons, 'init', obj)
 
     loose_m = muons[((muons.isTracker) | (muons.isGlobal))]
-    cutflow.fill_object(loose_m, 'tracker|global', 'muon')
+    cutflow.fill_object(loose_m, 'tracker|global', obj)
     
     loose_m = loose_m[(loose_m.looseId | loose_m.mediumId | loose_m.tightId)]
-    cutflow.fill_object(loose_m, 'looseId|mediumId|tightId', 'muon')
+    cutflow.fill_object(loose_m, 'looseId|mediumId|tightId', obj)
 
     loose_m = loose_m[(np.abs(loose_m.dxy) < 0.045)]
     loose_m = loose_m[(np.abs(loose_m.dz) < 0.2)]
-    cutflow.fill_object(loose_m, 'dz<0.045|dxy<0.2', 'muon')
+    cutflow.fill_object(loose_m, 'dz<0.045|dxy<0.2', obj)
 
     loose_m = loose_m[(loose_m.pt > 10)]
-    cutflow.fill_object(loose_m, 'pt>10', 'muon')
+    cutflow.fill_object(loose_m, 'pt>10', obj)
 
     loose_m = loose_m[(np.abs(loose_m.eta) < 2.4)]  
-    cutflow.fill_object(loose_m, '|eta|<2.4', 'muon')
+    cutflow.fill_object(loose_m, '|eta|<2.4', obj)
  
     #(muons.pfRelIso04_all < 0.25)]
     return loose_m
 
-def loose_taus(taus, cutflow):
-    cutflow.fill_object(taus, 'init', 'tau')
+def loose_taus(taus, cutflow, is_UL=False):
+    obj = 'loose taus'
+    cutflow.fill_object(taus, 'init', obj)
 
     loose_t = taus[(taus.pt > 20)]
-    cutflow.fill_object(loose_t, 'pt>20', 'tau')
+    cutflow.fill_object(loose_t, 'pt>20', obj)
 
     loose_t = loose_t[(np.abs(loose_t.eta) < 2.3)]
-    cutflow.fill_object(loose_t, '|eta|<2.3', 'tau')
+    cutflow.fill_object(loose_t, '|eta|<2.3', obj)
 
     loose_t = loose_t[(np.abs(loose_t.dz) < 0.2)]
-    cutflow.fill_object(loose_t, '|dz|<0.2', 'tau')
+    cutflow.fill_object(loose_t, '|dz|<0.2', obj)
     
-    loose_t = loose_t[(loose_t.idDecayModeNewDMs == 1)] 
-    cutflow.fill_object(loose_t, 'idDecayModeNewDMs==1', 'tau')
+    if (is_UL):
+        loose_t = loose_t[(loose_t.idDecayModeOldDMs == 1)] 
+        cutflow.fill_object(loose_t, 'idDecayModeOldDMs==1', obj)
+    else:
+        loose_t = loose_t[(loose_t.idDecayModeNewDMs == 1)]
+        cutflow.fill_object(loose_t, 'idDecayModeNewDMs==1', obj)
 
     loose_t = loose_t[((loose_t.decayMode != 5) & 
                        (loose_t.decayMode != 6))]
-    cutflow.fill_object(loose_t, 'decayMode!=5,6', 'tau')
+    cutflow.fill_object(loose_t, 'decayMode!=5,6', obj)
     
     loose_t = loose_t[(loose_t.idDeepTau2017v2p1VSjet > 0)]
-    cutflow.fill_object(loose_t, 'idDeepTau2017v2p1VSjet>0', 'tau')
+    cutflow.fill_object(loose_t, 'idDeepTau2017v2p1VSjet>0', obj)
 
     loose_t = loose_t[(loose_t.idDeepTau2017v2p1VSmu > 0)] # Loose
-    cutflow.fill_object(loose_t, 'idDeepTau2017v2p1VSmu>0', 'tau')
+    cutflow.fill_object(loose_t, 'idDeepTau2017v2p1VSmu>0', obj)
 
     loose_t = loose_t[(loose_t.idDeepTau2017v2p1VSe > 3)]  # VLoose
-    cutflow.fill_object(loose_t, 'idDeepTau2017v2p1VSe>3', 'tau')
+    cutflow.fill_object(loose_t, 'idDeepTau2017v2p1VSe>3', obj)
 
     return loose_t
 
 def loose_jets(jet, cutflow):
-    cutflow.fill_object(jet, 'init', 'jet')
+    obj = 'loose_jets'
+    cutflow.fill_object(jet, 'init', obj)
 
     loose_j = jet[(jet.pt > 30)]
-    cutflow.fill_object(loose_j, 'pt>30', 'jet')
+    cutflow.fill_object(loose_j, 'pt>30', obj)
     
     loose_j = loose_j[(np.abs(loose_j.eta) < 4.7)]
-    cutflow.fill_object(loose_j, '|eta|<4.7', 'jet')
+    cutflow.fill_object(loose_j, '|eta|<4.7', obj)
 
     loose_j = loose_j[(loose_j.jetId > 0)]
-    cutflow.fill_object(loose_j, 'jetId>0', 'jet')
+    cutflow.fill_object(loose_j, 'jetId>0', obj)
     return loose_j
+
+def loose_bjets(loose_j, cutflow):
+    obj = 'loose bjets'
+    loose_b = loose_j[(loose_j.btagDeepB > 0.4941)]
+    cutflow.fill_object(loose_b, 'btagDeepB > 0.4941', obj)
+    return loose_b
 
 def check_trigger_path(HLT, year, cat,
                        cutflow, sync=False):
     mask = trigger_path(HLT, year, cat, sync)
-    cutflow.fill_cutflow(np.sum(mask>0), 'trigger_path')
+    #cutflow.fill_cutflow(np.sum(mask>0), 'trigger_path')
     return mask 
 
 def trigger_path(HLT, year, cat, sync=False):
@@ -146,19 +160,26 @@ def lepton_count_veto(e_counts, m_counts, cat, cutflow):
     mask = ((e_counts == correct_e_counts[cat]) &
             (m_counts == correct_m_counts[cat]))
 
-    cutflow.fill_cutflow(np.sum(mask>0), 'lepton_count_veto')
-    return mask 
+    #cutflow.fill_cutflow(np.sum(mask>0), 'lepton_count_veto')
+    return mask
+
+def bjet_veto(loose_b, cutflow):
+    mask = (ak.num(loose_b) == 0)
+    #cutflow.fill(np.sum(mask), 'bjet veto')
+    return mask
 
 def build_Z_cand(ll, cutflow):
     ll_mass = (ll['l1'] + ll['l2']).mass
     ll = ll[(ll['l1'].charge != ll['l2'].charge) &
             ((ll_mass > 60) & (ll_mass < 120))]
-    
     mass_diffs = abs((ll['l1'] + ll['l2']).mass - 91.118)
-    min_mass_filter = ak.argmin(mass_diffs, axis=1, keepdims=True)
+    #min_mass_filter = ak.argmin(mass_diffs, axis=1, keepdims=True)
+    min_mass_filter = ak.argmin(mass_diffs, axis=1, 
+                            keepdims=True, mask_identity=False)
+    min_mass_filter = min_mass_filter[min_mass_filter>=0]
     ll = ll[min_mass_filter]
-    cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(ll, axis=1))), 'Z_cand')
-    return ll[~ak.is_none(ll, axis=1)] #lltt #ak.fill_none(lltt, [])
+    #cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(ll, axis=1))), 'Z_cand')
+    return ll[(~ak.is_none(ll, axis=1))] #lltt #ak.fill_none(lltt, [])
 
 def dR_lltt(lltt, cat, cutflow):
     dR_select = {'ee': 0.3, 'em': 0.3, 'mm': 0.3, 'me': 0.3,
@@ -173,7 +194,7 @@ def dR_lltt(lltt, cat, cutflow):
                (t1.delta_r(t2) > dR_select[cat[2]+cat[3]]))
 
     lltt = lltt.mask[(dR_mask)]
-    cutflow.fill_cutflow(np.sum(dR_mask>0), 'dR')
+    #cutflow.fill_cutflow(np.sum(dR_mask>0), 'dR')
     return lltt[~ak.is_none(lltt, axis=1)]
 
 def trigger_filter(ll, trig_obj, cat, cutflow):
@@ -184,7 +205,7 @@ def trigger_filter(ll, trig_obj, cat, cutflow):
     l1dR_matches = (lltrig['ll']['l1'].delta_r(lltrig['trobj']) < 0.5)
     l2dR_matches = (lltrig['ll']['l2'].delta_r(lltrig['trobj']) < 0.5)
     filter_bit = ((lltrig['trobj'].filterBits & 2) == 2)
-    #if cat[:2] == 'mm': filter_bit = (filter_bit | lltrig['trobj'].filterBits & 8 > 0)
+    if cat[:2] == 'mm': filter_bit = (filter_bit | lltrig['trobj'].filterBits & 8 > 0)
 
     l1_matches = lltrig[l1dR_matches & 
                         (lltrig['ll']['l1'].pt > pt_min) & 
@@ -197,15 +218,13 @@ def trigger_filter(ll, trig_obj, cat, cutflow):
     l2_match_counts = ak.sum(~ak.is_none(l2_matches, axis=1), axis=1)
     trig_match = (((l1_match_counts) > 0) | 
                   ((l2_match_counts) > 0))
-    #ll = ll.mask[(trig_match)]
-    cutflow.fill_cutflow(np.sum(trig_match>0), 'dR_4l')
-    #return ll[~ak.is_none(ll, axis=1)]
+    #cutflow.fill_cutflow(np.sum(trig_match>0), 'trigger filter')
     return trig_match
 
 def build_ditau_cand(lltt, cat, cutflow):
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
     if cat[2:] == 'mt':
-        lltt = lltt[(t2.idDeepTau2017v2p1VSmu > 14)] # bit 8=tight
+        lltt = lltt[(t2.idDeepTau2017v2p1VSmu > 14)] 
     elif cat[2:] == 'tt':
         lltt = lltt
     elif cat[2:] == 'et':
@@ -216,8 +235,13 @@ def build_ditau_cand(lltt, cat, cutflow):
     LT = lltt['tt']['t1'].pt + lltt['tt']['t2'].pt
     lltt = lltt[ak.argmax(LT, axis=1, keepdims=True)]
     
-    cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(lltt, axis=1))), 'ditau_cand')
+    #cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(lltt, axis=1))), 'ditau_cand')
     return lltt[~ak.is_none(lltt, axis=1)]
+
+def higgs_LT_cut(lltt, cat, cutflow, thld=60):
+    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+    LT = t1.pt + t2.pt
+    return lltt[(LT>thld)]
 
 
 #def run_fastmtt(lltt, met, category, cutflow):

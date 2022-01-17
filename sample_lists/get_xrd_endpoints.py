@@ -17,7 +17,7 @@ with open(fname) as stream:
       datafiles = yaml.safe_load(stream)
    except yaml.YAMLError as exc:
       print(exc)
-
+      
 # open list of sample properties
 fname = "{0}_{1}.csv".format(args.source, args.year)
 props = np.genfromtxt(fname,delimiter=',', names=True, comments='#',
@@ -30,8 +30,8 @@ for dataset, files in datafiles.items():
    print(dataset)
    dataset_name = dataset.replace(f'_{args.year}', '')
    dataset_props = props[props['name']==dataset_name][0]
-   if (dataset_props['redirector'] != ''):
-      continue
+   #if (dataset_props['redirector'] != ''):
+   #   continue
    #if ('AToZh' not in dataset): continue
 
    # get sample list

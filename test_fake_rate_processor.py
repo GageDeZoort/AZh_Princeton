@@ -33,19 +33,35 @@ if (sys.argv[1]=='e'):
 elif (sys.argv[1]=='m'):
     processor_instance=JetFakingMuProcessor(sample_info=sample_info)
 elif (sys.argv[1]=='t'):
-    processor_instance=JetFakingTauProcessor(sample_info=sample_info)
+    if (sys.argv[2]=='lltt'):
+        processor_instance=JetFakingTauProcessor(sample_info=sample_info,
+                                                 mode='lltt')
+    else:
+        processor_instance=JetFakingTauProcessor(sample_info=sample_info,
+                                                 mode='lllt')
 else:
     print("Please enter a valid jet faking <lepton>: ['e', 'm', 't']") 
     exit
 
 out = processor.run_uproot_job(
-    fileset,
+     fileset,
     treename="Events",
     processor_instance=processor_instance,
     executor=processor.futures_executor,
     executor_args={"schema": NanoAODSchema, "workers": 12},
 )
 
+# dump output
+outdir = '/srv'
+util.save(hists,
+          os.path.join(outdir, config['output_file']))
+
 lumi = np.array(out['lumi'].value, dtype=int)
 run = np.array(out['run'].value, dtype=int)
 evt = np.array(out['evt'].value, dtype=int)
+numerator = np.array(out['numerator'].value, dtype=int)
+denominator = np.array(out['denominator'].value, dtype=int)
+print("NUMERATOR:", numerator)
+print("DENOMINATOR:", denominator)
+
+

@@ -80,7 +80,7 @@ def transverse_mass_cut(lltt, met, thld=40):
     mT = np.sqrt((ET_lep + ET_miss)**2
                  - (px_lep + Ex_miss)**2 
                  - (py_lep + Ey_miss)**2)
-    return lltt[(mT < thld)]
+    return lltt.mask[(mT < thld)]
 
 def apply_numerator_selections(lltt, jet_faking_x, cat):
     t1 = lltt['tt']['t1'] 
@@ -129,19 +129,25 @@ def apply_numerator_selections(lltt, jet_faking_x, cat):
         print("Please enter a valid jet-faking-lepton flavor ('e', 'm', 't').")
         return -1
 
-def gen_match_lepton(lltt, jet_faking_x, cat):
+def gen_match_lepton(lltt, jet_faking_x, cat, weights):
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
     if (jet_faking_x=='e'):
         prompt_mask = ((t1.genPartFlav==1) | 
                        (t1.genPartFlav==15) | 
                        (t1.genPartFlav==22))
-        return lltt[~prompt_mask], lltt[prompt_mask]
-    if (jet_faking_x=='m'):
+    elif (jet_faking_x=='m'):
         prompt_mask = ((t1.genPartFlav==1) | 
                        (t1.genPartFlav==15))
         return lltt[~prompt_mask], lltt[prompt_mask]
-    if (jet_faking_x=='t'):
-        prompt_mask = ((t2.genPartFlav>0) |
+    else: # (jet_faking_x=='t'):
+        prompt_mask = ((t2.genPartFlav>0) &
                        (t2.genPartFlav<6))
-        return lltt[~prompt_mask], lltt[prompt_mask]
+
+    prompt_mask = (ak.sum(prompt_mask, axis=1)>0)
+    fake = {'data': lltt.mask[~prompt_mask],
+            'weights': weights[~prompt_mask]}
+    prompt = {'data': lltt.mask[prompt_mask],
+              'weights': weights[prompt_mask]}
+    
+    return fake, prompt
         

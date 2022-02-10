@@ -20,109 +20,221 @@ def filter_PV(events, selections, cutflow):
     selections.add('pv_filter', pv_filter)
     cutflow.fill(ak.sum(pv_filter), 'pv_filter')
 
-def loose_electrons(electrons, cutflow):
-    obj = 'loose electrons'
+def get_baseline_electrons(electrons, cutflow):
+    obj = 'baseline electrons'
     cutflow.fill_object(electrons, 'init', obj)
     
-    loose_e = electrons[(np.abs(electrons.dxy) < 0.045) &
+    baseline_e = electrons[(np.abs(electrons.dxy) < 0.045) &
                         (np.abs(electrons.dz)  < 0.2)]
-    cutflow.fill_object(loose_e, 'dxy<0.045&&dz<0.2', obj)
+    cutflow.fill_object(baseline_e, 'dxy<0.045&&dz<0.2', obj)
 
-    loose_e = loose_e[(loose_e.mvaFall17V2noIso_WP90 > 0.5)]
-    cutflow.fill_object(loose_e, 'mvaFall17V2noIsoWP90', obj)
+    baseline_e = baseline_e[(baseline_e.mvaFall17V2noIso_WP90 > 0.5)]
+    cutflow.fill_object(baseline_e, 'mvaFall17V2noIsoWP90', obj)
                                 
-    loose_e = loose_e[(loose_e.lostHits < 2)]
-    cutflow.fill_object(loose_e, 'lostHits<2', obj)
+    baseline_e = baseline_e[(baseline_e.lostHits < 2)]
+    cutflow.fill_object(baseline_e, 'lostHits<2', obj)
     
-    loose_e = loose_e[(loose_e.convVeto)]
-    cutflow.fill_object(loose_e, 'convVeto', obj)
+    baseline_e = baseline_e[(baseline_e.convVeto)]
+    cutflow.fill_object(baseline_e, 'convVeto', obj)
     
-    loose_e = loose_e[(loose_e.pt > 10)]
-    cutflow.fill_object(loose_e, 'pt>10', obj)
+    baseline_e = baseline_e[(baseline_e.pt > 10)]
+    cutflow.fill_object(baseline_e, 'pt>10', obj)
     
-    loose_e = loose_e[(np.abs(loose_e.eta) < 2.5)]
-    cutflow.fill_object(loose_e, '|eta|<2.5', obj)
+    baseline_e = baseline_e[(np.abs(baseline_e.eta) < 2.5)]
+    cutflow.fill_object(baseline_e, '|eta|<2.5', obj)
     
     #(electrons.pfRelIso03_all < 0.2) &
-    return loose_e
+    return baseline_e
 
-def loose_muons(muons, cutflow):
-    obj = 'loose muons'
+def get_baseline_muons(muons, cutflow):
+    obj = 'baseline muons'
     cutflow.fill_object(muons, 'init', obj)
 
-    loose_m = muons[((muons.isTracker) | (muons.isGlobal))]
-    cutflow.fill_object(loose_m, 'tracker|global', obj)
+    baseline_m = muons[((muons.isTracker) | (muons.isGlobal))]
+    cutflow.fill_object(baseline_m, 'tracker|global', obj)
     
-    loose_m = loose_m[(loose_m.looseId | loose_m.mediumId | loose_m.tightId)]
-    cutflow.fill_object(loose_m, 'looseId|mediumId|tightId', obj)
+    baseline_m = baseline_m[(baseline_m.looseId | baseline_m.mediumId | baseline_m.tightId)]
+    cutflow.fill_object(baseline_m, 'looseId|mediumId|tightId', obj)
 
-    loose_m = loose_m[(np.abs(loose_m.dxy) < 0.045)]
-    loose_m = loose_m[(np.abs(loose_m.dz) < 0.2)]
-    cutflow.fill_object(loose_m, 'dz<0.045|dxy<0.2', obj)
+    baseline_m = baseline_m[(np.abs(baseline_m.dxy) < 0.045)]
+    baseline_m = baseline_m[(np.abs(baseline_m.dz) < 0.2)]
+    cutflow.fill_object(baseline_m, 'dz<0.045|dxy<0.2', obj)
 
-    loose_m = loose_m[(loose_m.pt > 10)]
-    cutflow.fill_object(loose_m, 'pt>10', obj)
+    baseline_m = baseline_m[(baseline_m.pt > 10)]
+    cutflow.fill_object(baseline_m, 'pt>10', obj)
 
-    loose_m = loose_m[(np.abs(loose_m.eta) < 2.4)]  
-    cutflow.fill_object(loose_m, '|eta|<2.4', obj)
+    baseline_m = baseline_m[(np.abs(baseline_m.eta) < 2.4)]  
+    cutflow.fill_object(baseline_m, '|eta|<2.4', obj)
  
     #(muons.pfRelIso04_all < 0.25)]
-    return loose_m
+    return baseline_m
 
-def loose_taus(taus, cutflow, is_UL=False):
-    obj = 'loose taus'
+def get_baseline_taus(taus, cutflow, is_UL=False):
+    obj = 'baseline taus'
     cutflow.fill_object(taus, 'init', obj)
 
-    loose_t = taus[(taus.pt > 20)]
-    cutflow.fill_object(loose_t, 'pt>20', obj)
+    baseline_t = taus[(taus.pt > 20)]
+    cutflow.fill_object(baseline_t, 'pt>20', obj)
 
-    loose_t = loose_t[(np.abs(loose_t.eta) < 2.3)]
-    cutflow.fill_object(loose_t, '|eta|<2.3', obj)
+    baseline_t = baseline_t[(np.abs(baseline_t.eta) < 2.3)]
+    cutflow.fill_object(baseline_t, '|eta|<2.3', obj)
 
-    loose_t = loose_t[(np.abs(loose_t.dz) < 0.2)]
-    cutflow.fill_object(loose_t, '|dz|<0.2', obj)
+    baseline_t = baseline_t[(np.abs(baseline_t.dz) < 0.2)]
+    cutflow.fill_object(baseline_t, '|dz|<0.2', obj)
     
     if (is_UL):
-        loose_t = loose_t[(loose_t.idDecayModeOldDMs == 1)] 
-        cutflow.fill_object(loose_t, 'idDecayModeOldDMs==1', obj)
+        baseline_t = baseline_t[(baseline_t.idDecayModeOldDMs == 1)] 
+        cutflow.fill_object(baseline_t, 'idDecayModeOldDMs==1', obj)
     else:
-        loose_t = loose_t[(loose_t.idDecayModeNewDMs == 1)]
-        cutflow.fill_object(loose_t, 'idDecayModeNewDMs==1', obj)
+        baseline_t = baseline_t[(baseline_t.idDecayModeNewDMs == 1)]
+        cutflow.fill_object(baseline_t, 'idDecayModeNewDMs==1', obj)
 
-    loose_t = loose_t[((loose_t.decayMode != 5) & 
-                       (loose_t.decayMode != 6))]
-    cutflow.fill_object(loose_t, 'decayMode!=5,6', obj)
+    baseline_t = baseline_t[((baseline_t.decayMode != 5) & 
+                       (baseline_t.decayMode != 6))]
+    cutflow.fill_object(baseline_t, 'decayMode!=5,6', obj)
     
-    loose_t = loose_t[(loose_t.idDeepTau2017v2p1VSjet > 0)]
-    cutflow.fill_object(loose_t, 'idDeepTau2017v2p1VSjet>0', obj)
+    baseline_t = baseline_t[(baseline_t.idDeepTau2017v2p1VSjet > 0)]
+    cutflow.fill_object(baseline_t, 'idDeepTau2017v2p1VSjet>0', obj)
 
-    loose_t = loose_t[(loose_t.idDeepTau2017v2p1VSmu > 0)] # Loose
-    cutflow.fill_object(loose_t, 'idDeepTau2017v2p1VSmu>0', obj)
+    baseline_t = baseline_t[(baseline_t.idDeepTau2017v2p1VSmu > 0)] # Baseline
+    cutflow.fill_object(baseline_t, 'idDeepTau2017v2p1VSmu>0', obj)
 
-    loose_t = loose_t[(loose_t.idDeepTau2017v2p1VSe > 3)]  # VLoose
-    cutflow.fill_object(loose_t, 'idDeepTau2017v2p1VSe>3', obj)
+    baseline_t = baseline_t[(baseline_t.idDeepTau2017v2p1VSe > 3)]  # VBaseline
+    cutflow.fill_object(baseline_t, 'idDeepTau2017v2p1VSe>3', obj)
 
-    return loose_t
+    return baseline_t
 
-def loose_jets(jet, cutflow):
-    obj = 'loose_jets'
+def get_baseline_jets(jet, cutflow):
+    obj = 'baseline_jets'
     cutflow.fill_object(jet, 'init', obj)
 
-    loose_j = jet[(jet.pt > 30)]
-    cutflow.fill_object(loose_j, 'pt>30', obj)
+    baseline_j = jet[(jet.pt > 30)]
+    cutflow.fill_object(baseline_j, 'pt>30', obj)
     
-    loose_j = loose_j[(np.abs(loose_j.eta) < 4.7)]
-    cutflow.fill_object(loose_j, '|eta|<4.7', obj)
+    baseline_j = baseline_j[(np.abs(baseline_j.eta) < 4.7)]
+    cutflow.fill_object(baseline_j, '|eta|<4.7', obj)
 
-    loose_j = loose_j[(loose_j.jetId > 0)]
-    cutflow.fill_object(loose_j, 'jetId>0', obj)
-    return loose_j
+    baseline_j = baseline_j[(baseline_j.jetId > 0)]
+    cutflow.fill_object(baseline_j, 'jetId>0', obj)
+    return baseline_j
 
-def loose_bjets(loose_j, cutflow):
-    obj = 'loose bjets'
-    loose_b = loose_j[(loose_j.btagDeepB > 0.4941)]
-    cutflow.fill_object(loose_b, 'btagDeepB > 0.4941', obj)
-    return loose_b
+def get_baseline_bjets(baseline_j, cutflow):
+    obj = 'baseline bjets'
+    baseline_b = baseline_j[(baseline_j.btagDeepB > 0.4941)]
+    cutflow.fill_object(baseline_b, 'btagDeepB > 0.4941', obj)
+    return baseline_b
+
+def get_ll(electrons, muons, cat):
+    if cat[0]=='e':
+        return ak.combinations(electrons, 2, axis=1, fields=['l1', 'l2'])
+    else:
+        return ak.combinations(muons, 2, axis=1, fields=['l1', 'l2'])
+
+def get_tt(electrons, muons, taus, cat):
+    if cat[2:]=='mt':
+        return ak.cartesian({'t1': muons, 't2': taus}, axis=1)
+    elif cat[2:]=='et':
+        return ak.cartesian({'t1': electrons, 't2': taus}, axis=1)
+    elif cat[2:]=='em':
+        return ak.cartesian({'t1': electrons, 't2': muons}, axis=1)
+    elif cat[2:]=='tt':
+        return ak.combinations(taus, 2, axis=1, fields=['t1', 't2'])
+
+def clean_duplicates(lltt, cutflow, thld=0.05):
+    l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
+    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+    dR_mask = ((l1.delta_r(l2) > thld) &
+               (l1.delta_r(t1) > thld) &
+               (l1.delta_r(t2) > thld) &
+               (l2.delta_r(t1) > thld) &
+               (l2.delta_r(t2) > thld) &
+               (t1.delta_r(t2) > thld))
+
+    return lltt[dR_mask]
+
+def match_Z_lepton(l_obs, l_gen, cat):
+    ll_pdgid = 11 if cat[0]=='e' else 13
+    dR = l_obs.delta_r(l_gen)
+    dR = ak.fill_none(dR, False)
+    matched = ((dR < 0.2) & 
+               (abs(l_gen.pdgId)==ll_pdgid) & 
+               (l_gen.hasFlags('isPrompt')))
+    return matched
+
+def match_tau_e(t_obs, e_gen):
+    dR = t_obs.delta_r(e_gen)
+    dR = ak.fill_none(dR, False)
+    dR_match = ak.argmin(dR, axis=1, keepdims=True)
+    matched = ((dR < 0.2) &
+               (abs(e_gen.pdgId)==11) &
+               (e_gen.pt > 8) & 
+               (e_gen.hasFlags('isPromptTauDecayProduct') |
+                e_gen.hasFlags('isDirectTauDecayProduct') | 
+                e_gen.hasFlags('isDirectPromptTauDecayProduct')))
+    return matched
+
+def match_tau_m(t_obs, m_gen):
+    dR = t_obs.delta_r(m_gen)
+    dR = ak.fill_none(dR, False)
+    dR_match = ak.argmin(dR, axis=1, keepdims=True)
+    matched = ((dR < 0.2) & 
+               (abs(m_gen.pdgId)==13) & 
+               (m_gen.pt > 8) & 
+               (m_gen.hasFlags('isPromptTauDecayProduct') |
+                m_gen.hasFlags('isDirectTauDecayProduct') |
+                m_gen.hasFlags('isDirectPromptTauDecayProduct')))
+    return matched
+
+def match_tau_h(t_obs, t_gen):
+    dR = t_obs.delta_r(t_gen)
+    dR = ak.fill_none(dR, False)
+    dR_match = ak.argmin(dR, axis=1, keepdims=True)
+    matched = ((dR < 0.2) &
+               (t_gen.pt > 15))
+    return matched
+    
+def tag_categories(ele, mu, tau, gen):
+    Z_e = ele[((ele.matched_gen.pt > 8) & 
+               (abs(ele.matched_gen.pdgId)==11) & 
+               (ele.matched_gen.hasFlags('isPrompt')) &
+               (ele.matched_gen.parent.pdgId==23))]
+    Z_m = mu[((mu.matched_gen.pt > 8) & 
+              (abs(mu.matched_gen.pdgId)==13) & 
+              (mu.matched_gen.hasFlags('isPrompt')) &
+              (mu.matched_gen.parent.pdgId==23))]
+    tau_e = ele[((abs(ele.matched_gen.pdgId)==11) &
+                 (ele.matched_gen.pt > 8) &
+                 (ele.matched_gen.hasFlags('isPromptTauDecayProduct') |
+                  ele.matched_gen.hasFlags('isDirectTauDecayProduct') |
+                  ele.matched_gen.hasFlags('isDirectPromptTauDecayProduct')) &
+                 (abs(ele.matched_gen.parent.pdgId)==15))]
+    tau_m = mu[((abs(mu.matched_gen.pdgId)==13) &
+                (mu.matched_gen.pt > 8) &
+                (mu.matched_gen.hasFlags('isPromptTauDecayProduct') |
+                 mu.matched_gen.hasFlags('isDirectTauDecayProduct') |
+                 mu.matched_gen.hasFlags('isDirectPromptTauDecayProduct')) &
+                (abs(mu.matched_gen.parent.pdgId)==15))]
+    tau_gen = ak.cartesian({'tau': tau, 'gen': gen}, axis=1)
+    dR_mask = (tau_gen['tau'].delta_r(tau_gen['gen']) < 0.2)
+    tau_h = tau_gen[(dR_mask & 
+                     (tau_gen['gen'].pt > 15))]['tau']
+    
+    Z_e_counts = ak.sum(~ak.is_none(Z_e, axis=1), axis=1)
+    Z_m_counts = ak.sum(~ak.is_none(Z_m, axis=1), axis=1)
+    tau_e_counts = ak.sum(~ak.is_none(tau_e, axis=1), axis=1)
+    tau_m_counts = ak.sum(~ak.is_none(tau_m, axis=1), axis=1)
+    tau_h_counts = ak.sum(~ak.is_none(tau_h, axis=1), axis=1)
+    
+    eemt = ak.sum((Z_e_counts==2) & (tau_m_counts==1) & (tau_h_counts==1))
+    eeet = ak.sum((Z_e_counts==2) & (tau_e_counts==1) & (tau_h_counts==1))
+    eett = ak.sum((Z_e_counts==2) & (tau_h_counts==2))
+    eeem = ak.sum((Z_e_counts==2) & (tau_e_counts==1) & (tau_m_counts==1))
+    mmmt = ak.sum((Z_m_counts==2) & (tau_m_counts==1) & (tau_h_counts==1))
+    mmet = ak.sum((Z_m_counts==2) & (tau_e_counts==1) & (tau_h_counts==1))
+    mmtt = ak.sum((Z_m_counts==2) & (tau_h_counts==2))
+    mmem = ak.sum((Z_m_counts==2) & (tau_e_counts==1) & (tau_m_counts==1))
+    return {'eemt': eemt, 'eeet': eeet, 'eett': eett, 'eeem': eeem,
+            'mmmt': mmmt, 'mmet': mmet, 'mmtt': mmtt, 'mmem': mmem}
 
 def check_trigger_path(HLT, year, cat,
                        cutflow, sync=False):
@@ -163,10 +275,17 @@ def lepton_count_veto(e_counts, m_counts, cat, cutflow):
     #cutflow.fill_cutflow(np.sum(mask>0), 'lepton_count_veto')
     return mask
 
-def bjet_veto(loose_b, cutflow):
-    mask = (ak.num(loose_b) == 0)
+def bjet_veto(baseline_b, cutflow):
+    mask = (ak.num(baseline_b) == 0)
     #cutflow.fill(np.sum(mask), 'bjet veto')
     return mask
+
+def dR_ll(ll, cutflow):
+    l1, l2 = ll['l1'], ll['l2']
+    dR_mask = (l1.delta_r(l2) > 0.3)
+    #cutflow.fill_cutflow(np.sum(dR_mask>0), 'dR')
+    return ll.mask[dR_mask]
+
 
 def build_Z_cand(ll, cutflow):
     ll_mass = (ll['l1'] + ll['l2']).mass
@@ -238,10 +357,10 @@ def build_ditau_cand(lltt, cat, cutflow):
     #cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(lltt, axis=1))), 'ditau_cand')
     return lltt[~ak.is_none(lltt, axis=1)]
 
-def higgs_LT_cut(lltt, cat, cutflow, thld=60):
-    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
-    LT = t1.pt + t2.pt
-    return lltt[(LT>thld)]
+#def higgs_LT_cut(lltt, cat, cutflow, thld=60):
+#    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+#    LT = t1.pt + t2.pt
+#    return lltt[(LT>thld)]
 
 
 #def run_fastmtt(lltt, met, category, cutflow):

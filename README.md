@@ -11,3 +11,17 @@ The *AZh* analysis targets decays of a heavy pseudoscalar Higgs boson (*A*) to a
 
 ## Usage
 This analysis may be run locally via `run_analysis.py`. Alternatively, it may be run via the LPCJobQueue (see `https://github.com/CoffeaTeam/lpcjobqueue`) through `run_distributed_analysis.py`. 
+
+## Data
+### Pileup
+Following the recommendations in https://twiki.cern.ch/twiki/bin/viewauth/CMS/PileupJSONFileforData,
+- 2018: /afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions18/13TeV/PileUp/UltraLegacy/
+- 2017: /afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions17/13TeV/PileUp/UltraLegacy/
+- 2016: /afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions16/13TeV/PileUp/UltraLegacy/
+
+### Golden JSONs
+Recommended luminosity, golden JSON file information: https://twiki.cern.ch/twiki/bin/view/CMS/TWikiLUM
+- 2016APV: 19.52 fb^-1
+- 2016: 16.81 fb^-1 
+- 2017: 41.48 fb^-1
+- 2018: 59.83 fb^-1

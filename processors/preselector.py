@@ -137,14 +137,14 @@ class Preselector(processor.ProcessorABC):
         global_mask = global_selections.all(*global_selections.names)
         events = events[global_mask]
 
-        # grab loosely defined leptons 
-        loose_e = loose_electrons(events.Electron, self.cutflow)
-        loose_m = loose_muons(events.Muon, self.cutflow)
-        loose_t = loose_taus(events.Tau, self.cutflow, is_UL=is_UL)
+        # grab baselinely defined leptons 
+        baseline_e = baseline_electrons(events.Electron, self.cutflow)
+        baseline_m = baseline_muons(events.Muon, self.cutflow)
+        baseline_t = baseline_taus(events.Tau, self.cutflow, is_UL=is_UL)
         
         # count the number of leptons per event
-        e_counts = ak.num(loose_e)
-        m_counts = ak.num(loose_m)
+        e_counts = ak.num(baseline_e)
+        m_counts = ak.num(baseline_m)
         
         # store auxillary objects
         HLT_all, trig_obj_all = events.HLT, events.TrigObj
@@ -162,10 +162,10 @@ class Preselector(processor.ProcessorABC):
             # filter events based on lepton counts and trigger path
             trig_obj, HLT = trig_obj_all, HLT_all 
             if (cat[:2]=='ee'): 
-                ll = ak.combinations(loose_e, 2, axis=1, 
+                ll = ak.combinations(baseline_e, 2, axis=1, 
                                      fields=['l1', 'l2'])
             elif (cat[:2]=='mm'):
-                ll = ak.combinations(loose_m, 2, axis=1, 
+                ll = ak.combinations(baseline_m, 2, axis=1, 
                                      fields=['l1', 'l2'])
             preselections.add('trigger_path', 
                               check_trigger_path(HLT, year, 
@@ -182,13 +182,13 @@ class Preselector(processor.ProcessorABC):
 
             # pair ditau candidate leptons
             if cat[2:]=='mt':
-                tt = ak.cartesian({'t1': loose_m, 't2': loose_t}, axis=1)
+                tt = ak.cartesian({'t1': baseline_m, 't2': baseline_t}, axis=1)
             elif cat[2:]=='et':
-                tt = ak.cartesian({'t1': loose_e, 't2': loose_t}, axis=1)
+                tt = ak.cartesian({'t1': baseline_e, 't2': baseline_t}, axis=1)
             elif cat[2:]=='em':
-                tt = ak.cartesian({'t1': loose_e, 't2': loose_m}, axis=1)
+                tt = ak.cartesian({'t1': baseline_e, 't2': baseline_m}, axis=1)
             elif cat[2:]=='tt':
-                tt = ak.combinations(loose_t, 2, axis=1, fields=['t1', 't2'])
+                tt = ak.combinations(baseline_t, 2, axis=1, fields=['t1', 't2'])
                 
             # build 4l final state, mask nleptons + trigger path
             lltt = ak.cartesian({'ll': ll, 'tt': tt}, axis=1)
@@ -210,7 +210,7 @@ class Preselector(processor.ProcessorABC):
             # tighter selections
             #selections = analysis_tools.PackedSelection()
             #llttj = ak.cartesian({'lltt': lltt,
-            #                      'j': loose_j[good_events]}, axis=1)
+            #                      'j': baseline_j[good_events]}, axis=1)
             #selections.add('dR_llttj',
             #               dR_llttj(llttj, cutflow))
             #selections.add('higgsLT',

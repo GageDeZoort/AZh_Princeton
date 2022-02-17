@@ -3,17 +3,20 @@ import json
 import argparse
 import subprocess
 import numpy as np
+import uproot 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s', '--source', default='MC')
 parser.add_argument('-y', '--year', default='')
+parser.add_argument('--process', default='')
+parser.add_argument('--check-xrd', default=False)
 args = parser.parse_args()
 
 # output to a yaml
-outfile = open("sample_yamls/{0}_{1}.yaml".format(args.source, args.year), "w+")
+outfile = open(f"sample_yamls/{args.source}_{args.year}.yaml", "w+")
 
 # open sample file
-fname = "{0}_{1}.csv".format(args.source, args.year)
+fname = f"{args.source}_{args.year}.csv"
 f = np.genfromtxt(fname,delimiter=',', names=True, comments='#',
                   dtype=np.dtype([('f0', '<U32'), ('f1', '<U32'), ('f2', '<U32'), 
                                   ('f3', '<U250'), ('f4', '<f16'), ('f5', '<f8')]))
@@ -44,7 +47,8 @@ for i in range(len(f)):
             continue
         redirector = '/cmsxrootd-site.fnal.gov/'
         if f['redirector'][i]!='': redirector = f['redirector'][i]
-        outfile.write('  - root:/{}{}\n'.format(redirector,sample_file))
+        fname = f'root:/{redirector}{sample_file}'
+        outfile.write(f'  - {fname}\n')
 
 outfile.close()
 

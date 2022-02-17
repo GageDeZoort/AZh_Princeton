@@ -18,6 +18,7 @@ from preselections import *
 from tight_selections import *
 from cutflow import Cutflow
 from print_events import EventPrinter
+from pileup_utils import 
 
 class AnalysisProcessor(processor.ProcessorABC):
     def __init__(self, sync=False, categories='all',
@@ -85,25 +86,25 @@ class AnalysisProcessor(processor.ProcessorABC):
                                             80, 0, 400))
         
         self._accumulator = processor.dict_accumulator(
-            {'gen_counts': dict_acc({'eeem': col_acc(np.array([])),
-                                     'eeet': col_acc(np.array([])),
-                                     'eemt': col_acc(np.array([])),
-                                     'eett': col_acc(np.array([])),
-                                     'mmem': col_acc(np.array([])),
-                                     'mmet': col_acc(np.array([])),
-                                     'mmmt': col_acc(np.array([])),
-                                     'mmtt': col_acc(np.array([])),
-                                     'mass': col_acc(np.array([])),
+            {'gen_counts': dict_acc({'eeem': col_acc(np.empty((1,3))),
+                                     'eeet': col_acc(np.empty((1,3))),
+                                     'eemt': col_acc(np.empty((1,3))),
+                                     'eett': col_acc(np.empty((1,3))),
+                                     'mmem': col_acc(np.empty((1,3))),
+                                     'mmet': col_acc(np.empty((1,3))),
+                                     'mmmt': col_acc(np.empty((1,3))),
+                                     'mmtt': col_acc(np.empty((1,3))),
+                                     'mass': col_acc(np.empty((1,3))),
                                  }),
-             'obs_counts': dict_acc({'eeem': col_acc(np.array([])),
-                                     'eeet': col_acc(np.array([])),
-                                     'eemt': col_acc(np.array([])),
-                                     'eett': col_acc(np.array([])),
-                                     'mmem': col_acc(np.array([])),
-                                     'mmet': col_acc(np.array([])),
-                                     'mmmt': col_acc(np.array([])),
-                                     'mmtt': col_acc(np.array([])),
-                                     'mass': col_acc(np.array([])),
+             'obs_counts': dict_acc({'eeem': col_acc(np.empty((1,3))),
+                                     'eeet': col_acc(np.empty((1,3))),
+                                     'eemt': col_acc(np.empty((1,3))),
+                                     'eett': col_acc(np.empty((1,3))),
+                                     'mmem': col_acc(np.empty((1,3))),
+                                     'mmet': col_acc(np.empty((1,3))),
+                                     'mmmt': col_acc(np.empty((1,3))),
+                                     'mmtt': col_acc(np.empty((1,3))),
+                                     'mass': col_acc(np.empty((1,3))),
                                  }),
              'evt': col_acc(np.array([])), 
              'lumi': col_acc(np.array([])),
@@ -153,7 +154,8 @@ class AnalysisProcessor(processor.ProcessorABC):
         if (group=='data'): sample_weight=1
         
         # get sample mass
-        mass = ''
+        print(nevts, len(events))
+        mass = 0
         if (group=='signal'):
             mass = int(name.split('_M')[-1].split('_')[0])
             
@@ -185,9 +187,7 @@ class AnalysisProcessor(processor.ProcessorABC):
         cat_counts = tag_categories(events.Electron, events.Muon,
                                     events.Tau, events.GenVisTau)
         for cat, count in cat_counts.items():
-            self.output['gen_counts'][cat] += col_acc(np.array([count]))
-            if mass != '': 
-                self.output['gen_counts']['mass'] += col_acc(np.array([mass]))
+            self.output['gen_counts'][cat] += col_acc(np.array([[mass, count, nevts]]))
 
         # selections per category 
         for num, cat in self.categories.items():
@@ -214,6 +214,10 @@ class AnalysisProcessor(processor.ProcessorABC):
             weights = analysis_tools.Weights(len(events_all))
             weights.add('sample_weight', 
                         np.ones(len(events_all))*sample_weight)
+            weights.add('gen_weight',
+                        events_all.genWeight)
+            weights.add('pileup_weight',
+                        get_pileup_weight(events, year))
 
             # filter events based on lepton counts and trigger path
             trig_obj, HLT = trig_obj_all, HLT_all 
@@ -264,9 +268,7 @@ class AnalysisProcessor(processor.ProcessorABC):
             lltt_tight = lltt[tight_mask]
                 
             # fill observed event counts
-            self.output['obs_counts'][cat] += col_acc(np.array([len(lltt_tight)]))
-            if mass != '': 
-                self.output['obs_counts']['mass'] += col_acc(np.array([int(mass)]))
+            self.output['obs_counts'][cat] += col_acc(np.array([[mass, len(lltt_tight), nevts]]))
 
             # run fastmtt
             met = events.MET

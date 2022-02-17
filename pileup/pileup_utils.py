@@ -1,0 +1,30 @@
+import os
+import sys
+sys.path.append('../')
+import yaml
+import uproot
+import numpy as np
+
+def open_pileup_file(year, UL=True, shift=None):
+    indir = 'UL_2018' if UL else 'Legacy_2018'
+    mb_xsec = {'up': '66000ub', None: '69200ub',
+               'down': '72400ub'}
+    xsec = mb_xsec[shift]
+    file = f'PileupHistogram-goldenJSON-13tev-{year}-{xsec}-99bins.root'
+    pileup_data = uproot.open(os.path.join(indir, file))
+    key = pileup_data.keys()[0]
+    return pileup_data[key].to_numpy()
+
+def get_pileup_weight_table(pileup_MC, year, shift=None, UL=True):
+    pileup_data, bins = open_pileup_file(year, UL=UL, shift=shift)
+    integral_data = np.sum(pileup_data)
+    pileup_MC, bins = np.histogram(pileup_MC, bins, density=True)
+    ratios = (pileup_data/integral_data)/pileup_MC
+    ratios[np.isinf(ratios) | np.isnan(ratios)] = 0
+    return (ratios, bins)
+
+def get_pileup_weights(pileup_MC, bin_weights, bins, offset=-1):
+    bin_idx = (np.digitize(pileup_MC, bins)-1+offset)
+    bin_idx[bin_idx<0] = 0
+    return bin_weights[bin_idx]
+    

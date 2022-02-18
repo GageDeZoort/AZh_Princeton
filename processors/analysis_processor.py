@@ -14,14 +14,19 @@ from coffea.nanoevents.methods import candidate
 ak.behavior.update(candidate.behavior)
 
 sys.path.append('/srv')
+sys.path.append('../')
+sys.path.append('../selections')
+sys.path.append('../utils')
 from preselections import *
 from tight_selections import *
 from cutflow import Cutflow
 from print_events import EventPrinter
-from pileup_utils import 
+from weights import *
+#from pileup_utils import 
 
 class AnalysisProcessor(processor.ProcessorABC):
     def __init__(self, sync=False, categories='all',
+                 collection_vars=[], global_vars=[],
                  sample_info=[],
                  sample_dir='../sample_lists/sample_yamls',
                  exc1_path='sync/princeton_all.csv', 
@@ -31,6 +36,8 @@ class AnalysisProcessor(processor.ProcessorABC):
         self.sync = sync
         self.info = sample_info
         self.cutflow = Cutflow()
+        self.collection_vars=collection_vars
+        self.global_vars=global_vars
         if categories == 'all':
             self.categories = {1: 'eeet', 2: 'eemt', 3: 'eett', 4: 'eeem', 
                                5: 'mmet', 6: 'mmmt', 7: 'mmtt', 8: 'mmem'}
@@ -38,7 +45,10 @@ class AnalysisProcessor(processor.ProcessorABC):
             self.categories = {i:cat for i, cat in enumerate(categories)}
         self.printer = EventPrinter(exc1_path=exc1_path, 
                                     exc2_path=exc2_path)
+        self.eras = {'2016': 'Summer16', '2017': 'Fall17', '2018': 'Autumn18'}
+        self.lumi = {'2016': 35.9, '2017': 41.5, '2018': 59.7}
 
+        
         # bin variables by dataset, category, and leg
         dataset_axis = hist.Cat("dataset", "")
         category_axis = hist.Cat("category", "")
@@ -85,8 +95,14 @@ class AnalysisProcessor(processor.ProcessorABC):
                                    hist.Bin("m4l_cons", "$m_{4l}^{cons}$", 
                                             80, 0, 400))
         
+        collection_dict = {f"{c}_{v}": col_acc(np.array([]))
+                           for (c, v) in self.collection_vars}
+        global_dict = {var: col_acc(np.array([]))
+                       for var in global_vars}
+
         self._accumulator = processor.dict_accumulator(
-            {'gen_counts': dict_acc({'eeem': col_acc(np.empty((1,3))),
+            {**collection_dict, **global_dict,
+             'gen_counts': dict_acc({'eeem': col_acc(np.empty((1,3))),
                                      'eeet': col_acc(np.empty((1,3))),
                                      'eemt': col_acc(np.empty((1,3))),
                                      'eett': col_acc(np.empty((1,3))),
@@ -134,27 +150,19 @@ class AnalysisProcessor(processor.ProcessorABC):
 
     def process(self, events):
         self.output = self.accumulator.identity()
-        
-        print('...processing', events.metadata['dataset'])
         filename = events.metadata['filename']
 
         # organize dataset, year, luminosity
         dataset = events.metadata['dataset']
         year = dataset.split('_')[-1]
-        is_UL = True if 'RunIISummer20UL18' in filename else False
-        eras = {'2016': 'Summer16', '2017': 'Fall17', '2018': 'Autumn18'}
-        lumi = {'2016': 35.9, '2017': 41.5, '2018': 59.7}
-
-        # get sample properties
+        is_UL = True if 'UL' in filename else False
         name = dataset.replace('_'+year, '')
         properties = self.info[self.info['name']==name]
         group = properties['group'][0]
         nevts, xsec = properties['nevts'][0], properties['xsec'][0]
-        sample_weight = lumi[year] * xsec / nevts 
-        if (group=='data'): sample_weight=1
-        
+        sample_weight = self.lumi[year] * xsec / nevts
+            
         # get sample mass
-        print(nevts, len(events))
         mass = 0
         if (group=='signal'):
             mass = int(name.split('_M')[-1].split('_')[0])
@@ -184,10 +192,11 @@ class AnalysisProcessor(processor.ProcessorABC):
         events_all = events
         
         # get the gen-level counts of each category
-        cat_counts = tag_categories(events.Electron, events.Muon,
-                                    events.Tau, events.GenVisTau)
-        for cat, count in cat_counts.items():
-            self.output['gen_counts'][cat] += col_acc(np.array([[mass, count, nevts]]))
+        if group!='data':
+            cat_counts = tag_categories(events.Electron, events.Muon,
+                                        events.Tau, events.GenVisTau)
+            for cat, count in cat_counts.items():
+                self.output['gen_counts'][cat] += col_acc(np.array([[mass, count, nevts]]))
 
         # selections per category 
         for num, cat in self.categories.items():
@@ -216,8 +225,8 @@ class AnalysisProcessor(processor.ProcessorABC):
                         np.ones(len(events_all))*sample_weight)
             weights.add('gen_weight',
                         events_all.genWeight)
-            weights.add('pileup_weight',
-                        get_pileup_weight(events, year))
+            #weights.add('pileup_weight',
+            #            get_pileup_weight(events, year))
 
             # filter events based on lepton counts and trigger path
             trig_obj, HLT = trig_obj_all, HLT_all 
@@ -266,6 +275,16 @@ class AnalysisProcessor(processor.ProcessorABC):
             tight_mask = selections.all(*selections.names)
             w_tight = w[tight_mask]
             lltt_tight = lltt[tight_mask]
+            events = events[tight_mask]
+
+            # fill aux variables
+            for (c, v) in self.collection_vars:
+                values = events[c][v].to_numpy()
+                self.output[f"{c}_{v}"] += col_acc(values)
+            for v in self.global_vars:
+                values = events[v].to_numpy()
+                self.output[v] += col_acc(values)
+
                 
             # fill observed event counts
             self.output['obs_counts'][cat] += col_acc(np.array([[mass, len(lltt_tight), nevts]]))

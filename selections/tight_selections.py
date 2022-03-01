@@ -35,9 +35,9 @@ def iso_ID(lltt, cat, cutflow):
         iso = ((t1.pfRelIso03_all < 0.15) & 
                (t2.pfRelIso04_all < 0.15))
         ID = (t1.mvaFall17V2noIso_WP80)
-        iso_ID_mask = ak.flatten(iso&ID)
+        iso_ID_mask = ak.flatten(iso & ID)
     if (cat[2:]=='tt'):
-        iso_ID_mask = ak.Array([True]*len(lltt))
+        iso_ID_mask = ak.Array(np.ones(len(lltt), dtype=bool))
         
     cutflow.fill_cutflow(ak.sum(iso_ID_mask>0), 'iso_ID')
     return iso_ID_mask

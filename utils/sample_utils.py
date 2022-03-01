@@ -6,7 +6,7 @@ import numpy as np
 from coffea import processor
 from coffea.processor import column_accumulator as col_acc
 from coffea.nanoevents import NanoEventsFactory, NanoAODSchema
-from processors.analysis_processor import AnalysisProcessor
+#from processors.analysis_processor import AnalysisProcessor
 
 def open_yaml(f):
     with open(f, 'r') as stream:
@@ -18,7 +18,7 @@ def open_yaml(f):
 
 def load_sample_info(f):
     return np.genfromtxt(f, delimiter=',', names=True, comments='#',
-                         dtype=np.dtype([('f0', '<U9'), ('f1', '<U12'),
+                         dtype=np.dtype([('f0', '<U9'), ('f1', '<U32'),
                                          ('f2', '<U32'), ('f3', '<U250'),
                                          ('f4', '<f16'), ('f5', '<f8')]))
 
@@ -51,11 +51,11 @@ def get_fileset_arrays(fileset, collection_vars=[], global_vars=[],
                        analysis=True, sample_info=''):
     processor_instance = VariableHarvester(collection_vars=collection_vars,
                                            global_vars=global_vars)
-    if analysis:
-        sample_info = load_sample_info(sample_info)
-        processor_instance = AnalysisProcessor(sample_info=sample_info,
-                                               collection_vars=collection_vars,
-                                               global_vars=global_vars)
+    #if analysis:
+    #    sample_info = load_sample_info(sample_info)
+    #    processor_instance = AnalysisProcessor(sample_info=sample_info,
+    #                                           collection_vars=collection_vars,
+    #                                           global_vars=global_vars)
     out = processor.run_uproot_job(fileset,
                                    treename="Events",
                                    processor_instance=processor_instance,

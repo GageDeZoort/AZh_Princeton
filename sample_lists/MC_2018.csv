@@ -1,5 +1,5 @@
 #group,name,redirector,dataset,nevts,xsec
-signal,AToZhToLLTauTauM220,/cms-c004.rcac.purdue.edu:1094/,/AToZhToLLTauTau_4f_LO_M-220_13TeV-madgraph-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,500000,0.000006854
+signal,ggA_M220,/cms-c004.rcac.purdue.edu:1094/,/AToZhToLLTauTau_4f_LO_M-220_13TeV-madgraph-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,500000,0.000006854
 ttbar,TTTo2L2Nu,/cmsxrootd-site3.fnal.gov:1094/,/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,64310000,87.3
 ttbar,TTToSemiLeptonic,/pubxrootd.hep.wisc.edu:1094/,/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,100790000,365.34
 ttbar,TTToHadronic,/cmsxrootd-site3.fnal.gov:1094/,/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,128640000,377.96

@@ -16,10 +16,12 @@ sys.path.append('/srv')
 from preselections import *
 from SS_4l_selections import *
 from cutflow import Cutflow
+from pileup.pileup_utils import get_pileup_weights
 
 class JetFakingEleProcessor(processor.ProcessorABC):
     def __init__(self, sample_info=[],
-                 sample_dir='../sample_lists/sample_yamls'):
+                 sample_dir='../sample_lists/sample_yamls',
+                 pileup_tables=None):
         
         # set up class variables
         self.info = sample_info
@@ -33,7 +35,8 @@ class JetFakingEleProcessor(processor.ProcessorABC):
                                  'eemt': 1, 'eett': 0,
                                  'mmem': 3, 'mmet': 2, 
                                  'mmmt': 3, 'mmtt': 2}
-        
+        self.pileup_tables = pileup_tables
+        self.pileup_bins = np.arange(0, 100, 1)
 
         # bin variables by dataset, category, and leg
         dataset_axis = hist.Cat("dataset", "")
@@ -135,6 +138,19 @@ class JetFakingEleProcessor(processor.ProcessorABC):
         baseline_j = get_baseline_jets(jets, self.cutflow)
         baseline_b = get_baseline_bjets(baseline_j, self.cutflow)
         
+        # global weights
+        weights = analysis_tools.Weights(len(events))
+        weights.add('sample_weight',
+                    np.ones(len(events))*sample_weight)
+        weights.add('gen_weight',
+                    events.genWeight)
+        if (self.pileup_tables is not None) and not is_data:
+            pu_weights = get_pileup_weights(events.Pileup.nTrueInt,
+                                            self.pileup_tables[dataset],
+                                            self.pileup_bins)
+            weights.add('pileup_weight', pu_weights)
+
+        # loop over each category
         for cat in self.categories:
             # build event-level mask 
             mask = check_trigger_path(events.HLT, year, 
@@ -163,9 +179,7 @@ class JetFakingEleProcessor(processor.ProcessorABC):
             # apply event-level mask, initialize weights for each event
             met = events.MET[mask]
             llet = llet[mask]
-            weights = analysis_tools.Weights(len(llet))
-            weights.add('sample_weight',
-                        np.ones(len(llet))*sample_weight)
+            w = weights.weight()[mask]
             
             # build di-tau candidate, apply transverse mass cut
             llet = build_ditau_cand(llet, cat, self.cutflow)
@@ -173,7 +187,7 @@ class JetFakingEleProcessor(processor.ProcessorABC):
             
             # grab denominator events
             denom_mask = (ak.num(llet, axis=1)>0)
-            denom_weights = weights.weight()[denom_mask]
+            denom_weights = w[denom_mask]
             denominator = llet[denom_mask]
             
             # apply numerator selections
@@ -182,7 +196,7 @@ class JetFakingEleProcessor(processor.ProcessorABC):
             num_weights = denom_weights[num_mask]
             numerator = numerator[num_mask]
 
-            
+            # separate fake/prompt numerator/denominator contributions
             d_fake, d_prompt = gen_match_lepton(denominator, 'e', 
                                                 cat, denom_weights)
             n_fake, n_prompt = gen_match_lepton(numerator, 'e', 
@@ -246,7 +260,8 @@ class JetFakingEleProcessor(processor.ProcessorABC):
 
 class JetFakingMuProcessor(processor.ProcessorABC):
     def __init__(self, sample_info=[],
-                 sample_dir='../sample_lists/sample_yamls'):
+                 sample_dir='../sample_lists/sample_yamls',
+                 pileup_tables=None):
         
         # set up class variables
         self.info = sample_info
@@ -260,7 +275,9 @@ class JetFakingMuProcessor(processor.ProcessorABC):
                                  'eemt': 1, 'eett': 0,
                                  'mmem': 3, 'mmet': 2,
                                  'mmmt': 3, 'mmtt': 2}
-        
+        self.pileup_tables = pileup_tables
+        self.pileup_bins = pileup_bins
+
         # bin variables by dataset, category, and leg
         dataset_axis = hist.Cat("dataset", "")
         category_axis = hist.Cat("category", "")
@@ -361,7 +378,19 @@ class JetFakingMuProcessor(processor.ProcessorABC):
         jets = events.Jet
         baseline_j = get_baseline_jets(jets, self.cutflow)
         baseline_b = get_baseline_bjets(baseline_j, self.cutflow)
-        
+                
+        # global weights
+        weights = analysis_tools.Weights(len(events))
+        weights.add('sample_weight',
+                    np.ones(len(events))*sample_weight)
+        weights.add('gen_weight',
+                    events.genWeight)
+        if (self.pileup_tables is not None) and not is_data:
+            pu_weights = get_pileup_weights(events.Pileup.nTrueInt,
+                                            self.pileup_tables[dataset],
+                                            self.pileup_bins)
+            weights.add('pileup_weight', pu_weights)
+
         for cat in self.categories:
             self.cutflow.fill_mask(len(events.HLT), 'init', cat)
             
@@ -392,9 +421,6 @@ class JetFakingMuProcessor(processor.ProcessorABC):
             llmt = ak.cartesian({'ll': ll, 'tt': mt}, axis=1)
             met = events.MET[mask]
             llmt = llmt[mask]
-            weights = analysis_tools.Weights(len(llmt))
-            weights.add('sample_weight',
-                        np.ones(len(llmt))*sample_weight)
             
             # dR cuts to remove overlapping objects
             llmt = dR_lltt(llmt, cat, self.cutflow)
@@ -482,7 +508,7 @@ class JetFakingMuProcessor(processor.ProcessorABC):
 class JetFakingTauProcessor(processor.ProcessorABC):
     def __init__(self, sample_info=[],
                  sample_dir='../sample_lists/sample_yamls',
-                 mode='lllt'):
+                 mode='lllt', pileup_tables = None):
 
         # set up class variables
         self.info = sample_info
@@ -503,6 +529,7 @@ class JetFakingTauProcessor(processor.ProcessorABC):
                                  'eemt': 1, 'eett': 0,
                                  'mmem': 3, 'mmet': 2,
                                  'mmmt': 3, 'mmtt': 2}
+        self.pileup_tables = pileup_tables
 
         # bin variables by dataset, category, and leg
         dataset_axis = hist.Cat("dataset", "")

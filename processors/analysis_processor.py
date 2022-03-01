@@ -22,7 +22,7 @@ from tight_selections import *
 from cutflow import Cutflow
 from print_events import EventPrinter
 from weights import *
-#from pileup_utils import 
+from pileup.pileup_utils import get_pileup_weights
 
 class AnalysisProcessor(processor.ProcessorABC):
     def __init__(self, sync=False, categories='all',
@@ -30,7 +30,8 @@ class AnalysisProcessor(processor.ProcessorABC):
                  sample_info=[],
                  sample_dir='../sample_lists/sample_yamls',
                  exc1_path='sync/princeton_all.csv', 
-                 exc2_path='sync/desy_all.csv'):
+                 exc2_path='sync/desy_all.csv',
+                 pileup_tables=None):
 
         # initialize member variables
         self.sync = sync
@@ -47,8 +48,9 @@ class AnalysisProcessor(processor.ProcessorABC):
                                     exc2_path=exc2_path)
         self.eras = {'2016': 'Summer16', '2017': 'Fall17', '2018': 'Autumn18'}
         self.lumi = {'2016': 35.9, '2017': 41.5, '2018': 59.7}
+        self.pileup_tables = pileup_tables
+        self.pileup_bins = np.arange(0, 100)
 
-        
         # bin variables by dataset, category, and leg
         dataset_axis = hist.Cat("dataset", "")
         category_axis = hist.Cat("category", "")
@@ -122,6 +124,7 @@ class AnalysisProcessor(processor.ProcessorABC):
                                      'mmtt': col_acc(np.empty((1,3))),
                                      'mass': col_acc(np.empty((1,3))),
                                  }),
+             'tight': col_acc(np.array([])),
              'evt': col_acc(np.array([])), 
              'lumi': col_acc(np.array([])),
              'run': col_acc(np.array([])), 
@@ -157,8 +160,10 @@ class AnalysisProcessor(processor.ProcessorABC):
         year = dataset.split('_')[-1]
         is_UL = True if 'UL' in filename else False
         name = dataset.replace('_'+year, '')
+        print(name)
         properties = self.info[self.info['name']==name]
         group = properties['group'][0]
+        is_data = 'data' in group
         nevts, xsec = properties['nevts'][0], properties['xsec'][0]
         sample_weight = self.lumi[year] * xsec / nevts
             
@@ -192,12 +197,25 @@ class AnalysisProcessor(processor.ProcessorABC):
         events_all = events
         
         # get the gen-level counts of each category
-        if group!='data':
+        if group=='signal':
             cat_counts = tag_categories(events.Electron, events.Muon,
                                         events.Tau, events.GenVisTau)
             for cat, count in cat_counts.items():
                 self.output['gen_counts'][cat] += col_acc(np.array([[mass, count, nevts]]))
-
+    
+        # global weights
+        weights = analysis_tools.Weights(len(events))
+        weights.add('sample_weight', 
+                    np.ones(len(events))*sample_weight)
+        weights.add('gen_weight',
+                    events.genWeight)
+        if (self.pileup_tables is not None) and not is_data:
+            pu_weights = get_pileup_weights(events.Pileup.nTrueInt, 
+                                            self.pileup_tables[dataset],
+                                            self.pileup_bins)
+            weights.add('pileup_weight', pu_weights)
+                        
+                
         # selections per category 
         for num, cat in self.categories.items():
 
@@ -217,16 +235,9 @@ class AnalysisProcessor(processor.ProcessorABC):
             elif cat[2:]=='tt':
                 tt = ak.combinations(baseline_t, 2, axis=1, fields=['t1', 't2'])
             # lltt = clean_duplicates(lltt, self.cutflow, thld=0.2)
-    
+            
             # per-category preselections, weights
             preselections = analysis_tools.PackedSelection()
-            weights = analysis_tools.Weights(len(events_all))
-            weights.add('sample_weight', 
-                        np.ones(len(events_all))*sample_weight)
-            weights.add('gen_weight',
-                        events_all.genWeight)
-            #weights.add('pileup_weight',
-            #            get_pileup_weight(events, year))
 
             # filter events based on lepton counts and trigger path
             trig_obj, HLT = trig_obj_all, HLT_all 
@@ -275,19 +286,20 @@ class AnalysisProcessor(processor.ProcessorABC):
             tight_mask = selections.all(*selections.names)
             w_tight = w[tight_mask]
             lltt_tight = lltt[tight_mask]
-            events = events[tight_mask]
+            events_tight = events[tight_mask]
 
             # fill aux variables
-            for (c, v) in self.collection_vars:
-                values = events[c][v].to_numpy()
-                self.output[f"{c}_{v}"] += col_acc(values)
-            for v in self.global_vars:
-                values = events[v].to_numpy()
-                self.output[v] += col_acc(values)
-
-                
+            if len(self.collection_vars)>0:
+                for (c, v) in self.collection_vars:
+                    values = events[c][v].to_numpy()
+                    self.output[f"{c}_{v}"] += col_acc(values)
+            if len(self.global_vars)>0:
+                for v in self.global_vars:
+                    values = events[v].to_numpy()
+                    self.output[v] += col_acc(valuxces)
+                    
             # fill observed event counts
-            self.output['obs_counts'][cat] += col_acc(np.array([[mass, len(lltt_tight), nevts]]))
+            #self.output['obs_counts'][cat] += col_acc(np.array([[mass, len(lltt_tight), nevts]]))
 
             # run fastmtt
             met = events.MET
@@ -307,61 +319,61 @@ class AnalysisProcessor(processor.ProcessorABC):
                              ak.to_numpy(met.covXY), ak.to_numpy(met.covYY),
                              constrain=True)
 
-
             # output event-level info
-            self.output["evt"] += self.accumulate(events.event, flatten=False)
-            self.output["lumi"] += self.accumulate(events.luminosityBlock, flatten=False)
-            self.output["run"] += self.accumulate(events.run, flatten=False)
-            label_dict = {('ll', 'l1'): '1', ('ll', 'l2'): '2',
-                          ('tt', 't1'): '3', ('tt', 't2'): '4'}
-            for leg, label in label_dict.items():
-                for tight in ['loose', 'tight']:
-                    data_out = lltt_tight[leg[0]][leg[1]]
-                    weight = w_tight
-                    if tight=='loose': 
-                        data_out = lltt[leg[0]][leg[1]]
-                        weight = w
-                    self.output['pt'].fill(group=group, dataset=dataset,
-                                           tight=tight, category=cat, leg=label, 
-                                           weight=weight, pt=ak.flatten(data_out.pt))
-                    self.output['eta'].fill(group=group, dataset=dataset,
-                                            tight=tight, category=cat, leg=label, 
-                                            weight=weight, eta=ak.flatten(data_out.eta))
-                    self.output['phi'].fill(group=group, dataset=dataset,
-                                            tight=tight, category=cat, leg=label, 
-                                            weight=weight, phi=ak.flatten(data_out.phi))
-                    self.output['mass'].fill(group=group, dataset=dataset,
-                                             tight=tight, category=cat, leg=label, 
-                                             weight=weight, mass=ak.flatten(data_out.mass))
-                
-            mll = ak.flatten((lltt['ll']['l1']+lltt['ll']['l2']).mass)
-            self.output['mll'].fill(group=group, dataset=dataset,
-                                    tight='loose', category=cat, 
-                                    weight=w, mll=mll)
-            mll = ak.flatten((lltt_tight['ll']['l1']+lltt_tight['ll']['l2']).mass)
-            self.output['mll'].fill(group=group, dataset=dataset,
-                                    tight='tight', category=cat,
-                                    weight=w_tight, mll=mll)
-            mtt = ak.flatten((lltt['tt']['t1']+lltt['tt']['t2']).mass)
-            self.output['mtt'].fill(group=group, dataset=dataset,
-                                    category=cat, weight=w, mtt=mtt)
-            m4l = ak.flatten((lltt['ll']['l1']+lltt['ll']['l2']+
-                              lltt['tt']['t1']+lltt['tt']['t2']).mass)
-            self.output['m4l'].fill(group=group, dataset=dataset,
-                                    category=cat, weight=w, m4l=m4l)
+            #self.output["evt"] += self.accumulate(events.event, flatten=False)
+            #self.output["lumi"] += self.accumulate(events.luminosityBlock, flatten=False)
+            #self.output["run"] += self.accumulate(events.run, flatten=False)
+            #self.output['tight'] += self.accumulate(tight_mask, flatten=False)
+            #label_dict = {('ll', 'l1'): '1', ('ll', 'l2'): '2',
+            #              ('tt', 't1'): '3', ('tt', 't2'): '4'}
+            #for leg, label in label_dict.items():
+            #    for tight in ['loose', 'tight']:
+            #        data_out = lltt_tight[leg[0]][leg[1]]
+            #        weight = w_tight
+            #        if tight=='loose': 
+            #            data_out = lltt[leg[0]][leg[1]]
+            #            weight = w
+            #        self.output['pt'].fill(group=group, dataset=dataset,
+            #                               tight=tight, category=cat, leg=label, 
+            #                               weight=weight, pt=ak.flatten(data_out.pt))
+            #        self.output['eta'].fill(group=group, dataset=dataset,
+            #                                tight=tight, category=cat, leg=label, 
+            #                                weight=weight, eta=ak.flatten(data_out.eta))
+            #        self.output['phi'].fill(group=group, dataset=dataset,
+            #                                tight=tight, category=cat, leg=label, 
+            #                                weight=weight, phi=ak.flatten(data_out.phi))
+            #        self.output['mass'].fill(group=group, dataset=dataset,
+            #                                 tight=tight, category=cat, leg=label, 
+            #                                 weight=weight, mass=ak.flatten(data_out.mass))
+            #    
+            #mll = ak.flatten((lltt['ll']['l1']+lltt['ll']['l2']).mass)
+            #self.output['mll'].fill(group=group, dataset=dataset,
+            #                        tight='loose', category=cat, 
+            #                        weight=w, mll=mll)
+            #mll = ak.flatten((lltt_tight['ll']['l1']+lltt_tight['ll']['l2']).mass)
+            #self.output['mll'].fill(group=group, dataset=dataset,
+            #                        tight='tight', category=cat,
+            #                        weight=w_tight, mll=mll)
+            #mtt = ak.flatten((lltt['tt']['t1']+lltt['tt']['t2']).mass)
+            #self.output['mtt'].fill(group=group, dataset=dataset,
+            #                        category=cat, weight=w, mtt=mtt)
+            #m4l = ak.flatten((lltt['ll']['l1']+lltt['ll']['l2']+
+            #                  lltt['tt']['t1']+lltt['tt']['t2']).mass)
+            #self.output['m4l'].fill(group=group, dataset=dataset,
+            #                        category=cat, weight=w, m4l=m4l)
 
-            self.output['mtt_corr'].fill(group=group, dataset=dataset, 
-                                         category=cat, weight=w, 
-                                         mtt_corr=masses['mtt_corr'])
-            self.output['mtt_cons'].fill(group=group, dataset=dataset,
-                                         category=cat, weight=w, 
-                                         mtt_cons=masses['mtt_cons'])
-            self.output['m4l_corr'].fill(group=group, dataset=dataset,
-                                         category=cat, weight=w, 
-                                         m4l_corr=masses['m4l_corr'])
-            self.output['m4l_cons'].fill(group=group, dataset=dataset,
-                                         category=cat, weight=w, 
-                                         m4l_cons=masses['m4l_cons'])
+            #self.output['mtt_corr'].fill(group=group, dataset=dataset, 
+            #                             category=cat, weight=w, 
+            #                             mtt_corr=masses['mtt_corr'])
+            #self.output['mtt_cons'].fill(group=group, dataset=dataset,
+            #                             category=cat, weight=w, 
+            #                             mtt_cons=masses['mtt_cons'])
+            #self.output['m4l_corr'].fill(group=group, dataset=dataset,
+            #                             category=cat, weight=w, 
+            #                             m4l_corr=masses['m4l_corr'])
+            #self.output['m4l_cons'].fill(group=group, dataset=dataset,
+            #                             category=cat, weight=w, 
+            #                             m4l_cons=masses['m4l_cons'])
 
         return self.output
 

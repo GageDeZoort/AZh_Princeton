@@ -1,4 +1,5 @@
 import os
+from os.path import join
 import sys
 import yaml
 import uproot
@@ -12,7 +13,9 @@ from coffea import processor, util
 from coffea.nanoevents import NanoEventsFactory, BaseSchema, NanoAODSchema
 from distributed import Client
 from lpcjobqueue import LPCCondorCluster
-from preselector import Preselector
+from processors.analysis_processor import AnalysisProcessor
+from utils.sample_utils import *
+from pileup.pileup_utils import *
 
 def parse_args():
     """Parse command line arguments."""
@@ -48,60 +51,46 @@ use_MC = config['sample']['use_MC']
 use_UL_MC = config['sample']['use_UL_MC']
 indir = "sample_lists/sample_yamls"
 
-# sample info dtype
-dtype = np.dtype([('f0', '<U32'), ('f1', '<U32'),
-                  ('f2', '<U32'), ('f3', '<U250'),
-                  ('f4', '<f16'), ('f5', '<f8')])
+# build fileset and corresponding sample info
+fileset = {}
+pileup_tables=None
 
-# find filesets and corresponding sample info
-MC_fileset = {}
-MC_sample_info = np.empty(0, dtype=dtype)
-data_fileset = {}
-data_sample_info = np.empty(0, dtype=dtype)
-
-# load MC samples and info
 if use_MC:
-    # load sample yaml file listing all MC samples
     MC_string = f'MC_UL_{year}' if use_UL_MC else f'MC_{year}'
-    with open(os.path.join(indir, MC_string + '.yaml'), 'r') as stream:
-        try: 
-            MC_fileset = yaml.safe_load(stream)
-        except yaml.YAMLError as exc: 
-            print(exc)
-    # load sample_list file containing MC sample properties
-    infile = "sample_lists/" + MC_string + ".csv"
-    MC_sample_info = np.genfromtxt(infile, delimiter=',', names=True, 
-                                   comments='#', dtype=dtype)
+    MC_fileset = get_fileset(join(indir, MC_string+'.yaml'))
+    pileup_tables = get_pileup_tables(MC_fileset.keys(), year,
+                                      UL=use_UL_MC)
+    fileset.update(MC_fileset)
+    
+# MC sample info
+sample_info = load_sample_info(join('sample_lists', 
+                                    MC_string+'.csv'))
 
-# load data samples and info
 if use_data:
-    # load sample yaml file listing all data samples
     data_string = f'data_UL_{year}' if use_UL_data else f'data_{year}'
-    with open(os.path.join(indir, data_string + '.yaml'), 'r') as stream:
-        try:
-            data_fileset = yaml.safe_load(stream)
-        except yaml.YAMLError as exc:
-            print(exc)
+    data_fileset = get_fileset(join(indir, data_string+'.yaml'))
     data_fileset = {key: val for key, val in data_fileset.items()
                     if 'SingleMuon' in key}
-    print('new datafileset', data_fileset}
-    # load sample_list file containing data sample properties
-    infile = "sample_lists/" + data_string + ".csv"
-    data_sample_info = np.genfromtxt(infile, delimiter=',', names=True, 
-                                     comments='#', dtype=dtype)
+    fileset.update(data_fileset)
 
-# sum MC + data filesets and sample info (when applicable)
-fileset = {**MC_fileset, **data_fileset}
-sample_info = np.append(MC_sample_info, data_sample_info)
+# add data sample info
+data_sample_info = load_sample_info(join('sample_lists',
+                                         data_string+'.csv'))
+sample_info = np.append(sample_info, data_sample_info)
+
 logging.info(f"Fileset:\n{fileset.keys()}")
 logging.info(f"Sample Info:\n{sample_info}")
 
 # start timer, initiate cluster, ship over files
 tic = time.time()
-infiles = ['processors/preselector.py', 'selections/preselections.py',
-           'selections/selections_3l.py',
-           'utils/cutflow.py', 'utils/print_events.py',
-           f'sample_lists/MC_{year}.csv']
+infiles = ['processors/analysis_processor.py', 
+           'selections/preselections.py',
+           'selections/tight_selections.py',
+           'utils/cutflow.py', 
+           'utils/print_events.py',
+           'pileup/pileup_utils.py',
+           f'sample_lists/MC_{year}.csv',
+           f'sample_lists/data_{year}.csv']
 cluster = LPCCondorCluster(ship_env=False, transfer_input_files=infiles,
                            scheduler_options={"dashboard_address": ":8787"})
 
@@ -119,22 +108,14 @@ exe_args = {
     'schema': NanoAODSchema,
 }
 
-# if syncing, include "exclusive event" files 
-exc1_path = 'AZh_Princeton/sync/princeton_all_exclusive.csv'
-exc2_path = 'AZh_Princeton/sync/desy_all_exclusive.csv'
-
-#subprocess.check_output('echo $PYTHONPATH', shell=True)
-
 # instantiate processor module
-preselector = Preselector(sync=True, categories='all',  
-                          sample_info=sample_info,
-                          exc1_path=exc1_path, 
-                          exc2_path=exc2_path)
+proc_instance = AnalysisProcessor(sample_info=sample_info,
+                                  pileup_tables=pileup_tables)
 
 hists, metrics = processor.run_uproot_job(
    fileset,
    treename="Events",
-   processor_instance=preselector,
+   processor_instance=proc_instance,
    executor=processor.dask_executor,
    executor_args=exe_args,
    #maxchunks=20,

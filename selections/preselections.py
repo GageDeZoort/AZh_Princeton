@@ -53,7 +53,12 @@ def get_baseline_muons(muons, cutflow):
     baseline_m = muons[((muons.isTracker) | (muons.isGlobal))]
     cutflow.fill_object(baseline_m, 'tracker|global', obj)
     
-    baseline_m = baseline_m[(baseline_m.looseId | baseline_m.mediumId | baseline_m.tightId)]
+    if 'looseId' in muons.fields:
+        id_mask = (baseline_m.looseId | baseline_m.mediumId | baseline_m.tightId)
+    else:
+        id_mask = (baseline_m.mediumId | baseline_m.tightId)
+
+    baseline_m = baseline_m[id_mask]
     cutflow.fill_object(baseline_m, 'looseId|mediumId|tightId', obj)
 
     baseline_m = baseline_m[(np.abs(baseline_m.dxy) < 0.045)]

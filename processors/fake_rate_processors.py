@@ -23,7 +23,7 @@ from pileup_utils import get_pileup_weights
 class SS4lFakeRateProcessor(processor.ProcessorABC):
     def __init__(self, sample_info=[],
                  sample_dir='../sample_lists/sample_yamls',
-                 pileup_tables=None, mode='-1'):
+                 pileup_tables=None, mode=-1):
 
         # set up class variables
         self.info = sample_info
@@ -31,12 +31,11 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
 
         # modes lt and tt correspond to jet-faking-tau
         self.mode = mode
-        cats_per_mode = {'e': ['eeet', 'mmet'],
-                         'm': ['eemtt', 'mmmt'],
-                         'lt': ['eeet', 'mmmt', 'eemt', 'mmet'],
-                         'tt': ['eeet', 'mmtt']}
-        try: self.categories = cats_per_mode[mode]
-        except: print("Please enter a valid mode from {'e', 'm', 'lt', 'tt'}.")
+        self.cats_per_mode = {'e': ['eeet', 'mmet'],
+                              'm': ['eemt', 'mmmt'],
+                              'lt': ['eeet', 'mmmt', 'eemt', 'mmet'],
+                              'tt': ['eeet', 'mmtt']}
+        self.categories = self.cats_per_mode[mode]
         
         # for the lepton count veto
         self.correct_e_counts = {'eeem': 3, 'eeet': 3,
@@ -59,36 +58,37 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         leg_axis = hist.Cat("leg", "")
         fake_axis = hist.Cat("fake", "")
         numerator_axis = hist.Cat("numerator", "")
+        mode_axis = hist.Cat("mode", "")
         pt_axis = hist.Cat("pt_bin", "")
         eta_axis = hist.Cat("eta_bin", "")
 
         # bin variables themselves
         pt_hist = hist.Hist("Counts", group_axis, dataset_axis,
                             category_axis, leg_axis, fake_axis,
-                            numerator_axis,
+                            numerator_axis, mode_axis,
                             hist.Bin("pt", "$p_T$ [GeV]", 30, 0, 150))
         eta_hist = hist.Hist("Counts", group_axis, dataset_axis,
                              category_axis, leg_axis, fake_axis,
-                             numerator_axis,
+                             numerator_axis, mode_axis,
                              hist.Bin("eta", "$\eta$", 40, -5, 5))
         phi_hist = hist.Hist("Counts", group_axis, dataset_axis,
                              category_axis, leg_axis, fake_axis,
-                             numerator_axis,
+                             numerator_axis, mode_axis,
                              hist.Bin("phi", "$\phi$", 40, -np.pi, np.pi))
         mass_hist = hist.Hist("Counts", group_axis, dataset_axis,
                               category_axis, leg_axis, fake_axis,
-                              numerator_axis,
+                              numerator_axis, mode_axis, 
                               hist.Bin("mass", "$m$", 40, 0, 20))
         mll_hist = hist.Hist("Counts", group_axis, fake_axis,
                              dataset_axis, category_axis,
-                             numerator_axis,
+                             numerator_axis, mode_axis,
                              hist.Bin("mll", "$m_{ll}$", 30, 60, 120))
         mtt_hist = hist.Hist("Counts", group_axis, fake_axis,
                              dataset_axis, category_axis,
-                             numerator_axis,
+                             numerator_axis, mode_axis,
                              hist.Bin("mtt", "$m_{tt}$", 40, 0, 200))
         mT_hist = hist.Hist("Counts", group_axis, fake_axis,
-                            dataset_axis, category_axis,
+                            dataset_axis, category_axis, mode_axis,
                             numerator_axis, pt_axis, eta_axis,
                             hist.Bin("mT", "$m_T$", 40, 0, 200))
 
@@ -129,14 +129,16 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         year = dataset.split('_')[-1]
         is_UL = True if 'RunIISummer20UL18' in filename else False
         eras = {'2016': 'Summer16', '2017': 'Fall17', '2018': 'Autumn18'}
-        lumi = {'2016': 35.9, '2017': 41.5, '2018': 59.7}
+        lumi = {'2016': 35.9*1000, '2017': 41.5*1000, '2018': 59.7*1000}
 
         # get sample properties
-        properties = self.info[self.info['name']==dataset.split('_')[:-1]]
+        properties = self.info[self.info['name']==dataset.replace(f'_{year}', '')]
+        print(dataset, properties)
         group = properties['group'][0]
         is_data = 'data' in group
         nevts, xsec = properties['nevts'][0], properties['xsec'][0]
-        sample_weight = lumi[year] * xsec / nevts 
+        #sample_weight = lumi[year] * xsec / nevts 
+        sample_weight = lumi[year] * xsec / nevts
         if is_data: sample_weight=1
 
         # build lepton/jet collections
@@ -147,7 +149,6 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         loose_m = get_loose_muons(muons, self.cutflow)
         baseline_m = get_baseline_muons(muons, self.cutflow)
         taus = events.Tau
-        print(taus.fields)
         loose_t = get_loose_taus(taus, self.cutflow)
         baseline_t = get_baseline_taus(taus, self.cutflow)
         jets = events.Jet
@@ -158,128 +159,130 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         weights = analysis_tools.Weights(len(events))
         weights.add('sample_weight',
                     np.ones(len(events))*sample_weight)
-        weights.add('gen_weight',
-                    events.genWeight)
+        
         if (self.pileup_tables is not None) and not is_data:
+            weights.add('gen_weight', events.genWeight)
             pu_weights = get_pileup_weights(events.Pileup.nTrueInt,
                                             self.pileup_tables[dataset],
                                             self.pileup_bins)
             weights.add('pileup_weight', pu_weights)
 
         # loop over each category
-        for cat in self.categories:
-            
-            # build event-level mask 
-            mask = check_trigger_path(events.HLT, year, 
-                                      cat, self.cutflow)
-            mask = mask & lepton_count_veto(ak.num(baseline_e), 
-                                            ak.num(baseline_m), 
-                                            cat, self.cutflow)
-            mask = mask & bjet_veto(baseline_b, self.cutflow)
-            
-            # pair loose light leptons, build Z candidate
-            l = baseline_e if (cat[0]=='e') else baseline_m
-            ll = ak.combinations(l, 2, axis=1, fields=['l1', 'l2'])
-            ll = dR_ll(ll, self.cutflow)
-            ll = build_Z_cand(ll, self.cutflow)
-            
-            # apply trigger filter based on Z leptons
-            mask = mask & trigger_filter(ll, events.TrigObj, 
-                                         cat, self.cutflow)
-            
-            # create SS4l final state with well-separated objects
-            if self.mode=='e': 
-                tt = ak.cartesian({'t1': loose_e, 't2': baseline_t}, axis=1)
-            elif self.mode=='m':
-                tt = ak.cartesian({'t1': loose_m, 't2': baseline_t}, axis=1)
-            elif self.mode=='lt':
-                t1 = baseline_e if (cat[2]=='e') else baseline_m
-                tt = ak.cartesian({'t1': t1, 't2': loose_t}, axis=1)
-            elif self.mode=='tt':
-                tt = ak.cartesian({'t1': baseline_t, 't2': loose_t}, axis=1)
-            else: print(f"Category {cat} not valid for mode {self.mode}")
-
-            # pair well-separated 4l systems, reject OS ditau candidates
-            lltt = ak.cartesian({'ll': ll, 'tt': tt}, axis=1)
-            lltt = dR_lltt(lltt, cat, self.cutflow)
-            lltt = same_sign(lltt)
-
-            # apply event-level mask, initialize weights for each event
-            met = events.MET[mask]
-            lltt = lltt[mask]
-            w = weights.weight()[mask]
-            
-            # build di-tau candidate, apply transverse mass cut
-            lltt = build_ditau_cand(lltt, cat, self.cutflow)
-            lltt = transverse_mass_cut(lltt, met, 40)
-            
-            # grab denominator events
-            denom_mask = (ak.num(lltt, axis=1)>0)
-            denom_weights = w[denom_mask]
-            denominator = lltt[denom_mask]
-            
-            # apply numerator selections
-            numerator = apply_numerator_selections(denominator, 
-                                                   self.mode[-1], cat)
-            num_mask = (ak.num(numerator, axis=1)>0)
-            num_weights = denom_weights[num_mask]
-            numerator = numerator[num_mask]
-
-            # separate fake/prompt numerator/denominator contributions
-            d_fake, d_prompt = gen_match_lepton(denominator, self.mode[-1], 
-                                                cat, denom_weights)
-            n_fake, n_prompt = gen_match_lepton(numerator, self.mode[-1], 
-                                                cat, num_weights)
-
-            final_states = {('denominator', 'prompt'): d_prompt, 
-                            ('denominator', 'fake'): d_fake,
-                            ('numerator', 'prompt'): n_prompt, 
-                            ('numerator', 'fake'): n_fake}
-            
-            # fill denominator/numerator regions with fake/prompt events
-            for label, data in final_states.items():
-                data, weight = data['data'], data['weights']
-                data = data[~ak.is_none(data, axis=1)]
-                mtt = ak.flatten((data['tt']['t1']+data['tt']['t2']).mass)
-                pt = ak.flatten(data['tt']['t1'].pt)
-                if len(mtt)==0: continue
-                self.output['mtt'].fill(group=group, dataset=dataset,
-                                        category=cat, numerator=label[0],
-                                        fake=label[1], mtt=mtt, weight=weight)
+        #for mode, categories in self.cats_per_mode.items():
+        mode = self.mode
+        if mode!=-1:
+            for cat in self.categories: 
+                # build event-level mask 
+                mask = check_trigger_path(events.HLT, year, 
+                                          cat, self.cutflow)
+                mask = mask & lepton_count_veto(ak.num(baseline_e), 
+                                                ak.num(baseline_m), 
+                                                cat, self.cutflow)
+                mask = mask & bjet_veto(baseline_b, self.cutflow)
                 
-                for pt_range in [(10, 20), (20, 30), (30, 40), (40, 60), (60, 10**3)]:
-                    pt_bin = f"${pt_range[0]}<p_T<{pt_range[1]}$ GeV"
-                    eta_barrel_bin = f"$|\eta|<1.479$"
-                    eta_endcap_bin = f"$|\eta|>1.479$"
-                    tau = data['tt']['t1']
-                    mT = np.sqrt(tau.energy**2 - tau.pt**2)
-                    pt_mask = ((tau.pt > pt_range[0]) & (tau.pt < pt_range[1]))            
-                    barrel_mask = (ak.num((abs(tau.eta) < 1.479) & pt_mask) > 0)
-                    endcap_mask = (ak.num((abs(tau.eta) > 1.479) & pt_mask) > 0)
-                    self.output['mT'].fill(group=group, dataset=dataset,
-                                           category=cat, numerator=label[0],
-                                           fake=label[1], pt_bin=pt_bin, 
-                                           eta_bin=eta_barrel_bin, 
-                                           weight=weight[barrel_mask],
-                                           mT=ak.flatten(mT[barrel_mask]))
-                    self.output['mT'].fill(group=group, dataset=dataset,
-                                           category=cat, numerator=label[0],
-                                           fake=label[1], pt_bin=pt_bin,
-                                           eta_bin=eta_endcap_bin, 
-                                           weight=weight[endcap_mask],
-                                           mT=ak.flatten(mT[endcap_mask]))
-                    
-                self.output['pt'].fill(group=group, dataset=dataset,
-                                       category=cat, leg='3',
-                                       numerator=label[0], fake=label[1],
-                                       pt=pt)
-
-            self.output["denominator_fake"] += self.accumulate(d_fake['data'])
-            self.output["denominator_prompt"] += self.accumulate(d_prompt['data'])
-            self.output["numerator_fake"] += self.accumulate(n_fake['data'])
-            self.output["numerator_prompt"] += self.accumulate(n_prompt['data'])
-
+                # pair loose light leptons, build Z candidate
+                l = baseline_e if (cat[0]=='e') else baseline_m
+                ll = ak.combinations(l, 2, axis=1, fields=['l1', 'l2'])
+                ll = dR_ll(ll, self.cutflow)
+                ll = build_Z_cand(ll, self.cutflow)
             
+                # apply trigger filter based on Z leptons
+                mask = mask & trigger_filter(ll, events.TrigObj, 
+                                             cat, self.cutflow)
+            
+                # create SS4l final state with well-separated objects
+                if mode=='e': 
+                    tt = ak.cartesian({'t1': loose_e, 't2': baseline_t}, axis=1)
+                elif mode=='m':
+                    tt = ak.cartesian({'t1': loose_m, 't2': baseline_t}, axis=1)
+                elif mode=='lt':
+                    t1 = baseline_e if (cat[2]=='e') else baseline_m
+                    tt = ak.cartesian({'t1': t1, 't2': loose_t}, axis=1)
+                elif mode=='tt':
+                    tt = ak.cartesian({'t1': baseline_t, 't2': loose_t}, axis=1)
+                else: print(f"Category {cat} not valid for mode {mode}")
+            
+                # pair well-separated 4l systems, reject OS ditau candidates
+                lltt = ak.cartesian({'ll': ll, 'tt': tt}, axis=1)
+                lltt = dR_lltt(lltt, cat, self.cutflow)
+                lltt = same_sign(lltt)
+                
+                # apply event-level mask, initialize weights for each event
+                met = events.MET[mask]
+                lltt = lltt[mask]
+                w = weights.weight()[mask]
+                
+                # build di-tau candidate, apply transverse mass cut
+                lltt = build_ditau_cand(lltt, cat, self.cutflow)
+                lltt = transverse_mass_cut(lltt, met, 40)
+                
+                # grab denominator events
+                denom_mask = (ak.num(lltt, axis=1)>0)
+                denom_weights = w[denom_mask]
+                denominator = lltt[denom_mask]
+                
+                # apply numerator selections
+                numerator = apply_numerator_selections(denominator, 
+                                                       mode[-1], cat)
+                num_mask = (ak.num(numerator, axis=1)>0)
+                num_weights = denom_weights[num_mask]
+                numerator = numerator[num_mask]
+            
+                final_states = {}
+                if is_data:
+                    denominator = {'data': denominator, 'weights': denom_weights}
+                    numerator = {'data': numerator, 'weights': num_weights}
+                    final_states = {('denominator', 'data'): denominator,
+                                    ('numerator', 'data'): numerator}
+                else:
+                    # separate fake/prompt numerator/denominator contributions
+                    d_fake, d_prompt = gen_match_lepton(denominator, mode[-1], 
+                                                        cat, denom_weights)
+                    n_fake, n_prompt = gen_match_lepton(numerator, mode[-1], 
+                                                        cat, num_weights)
+                    
+                    final_states = {('denominator', 'prompt'): d_prompt, 
+                                    ('denominator', 'fake'): d_fake,
+                                    ('numerator', 'prompt'): n_prompt, 
+                                    ('numerator', 'fake'): n_fake}
+            
+                # fill denominator/numerator regions with fake/prompt events
+                for label, data in final_states.items():
+                    data, weight = data['data'], data['weights']
+                    #weight = weight[ak.sum(~ak.is_none(data, axis=1), axis=1)]
+                    mask = (ak.sum(~ak.is_none(data, axis=1), axis=1) > 0)
+                    data, weight = data[mask], weight[mask]
+                    mtt = ak.flatten((data['tt']['t1']+data['tt']['t2']).mass)
+                    pt = ak.flatten(data['tt']['t1'].pt)
+                    if len(mtt)==0: continue
+                    self.output['mtt'].fill(group=group, dataset=dataset, mode=mode,
+                                            category=cat, numerator=label[0],
+                                            fake=label[1], mtt=mtt, weight=weight)
+                
+                    for pt_range in [(10, 20), (20, 30), (30, 40), (40, 60), (60, 10**3)]:
+                        pt_bin = f"${pt_range[0]}<p_T<{pt_range[1]}$ GeV"
+                        eta_barrel_bin = f"$|\eta|<1.479$"
+                        eta_endcap_bin = f"$|\eta|>1.479$"
+                        tau = data['tt']['t1']
+                        mT = np.sqrt(tau.energy**2 - tau.pt**2)
+                        pt_mask = ((tau.pt > pt_range[0]) & (tau.pt < pt_range[1]))            
+                        #barrel_mask = (ak.num((abs(tau.eta) < 1.479) & pt_mask) > 0)
+                        #endcap_mask = (ak.num((abs(tau.eta) > 1.479) & pt_mask) > 0)
+                        barrel_mask = ak.flatten((abs(tau.eta) < 1.479) & pt_mask)
+                        endcap_mask = ak.flatten((abs(tau.eta) > 1.479) & pt_mask)
+                        self.output['mT'].fill(group=group, dataset=dataset,
+                                               category=cat, numerator=label[0],
+                                               fake=label[1], pt_bin=pt_bin, 
+                                               eta_bin=eta_barrel_bin, mode=mode,
+                                               weight=weight[barrel_mask],
+                                               mT=ak.flatten(mT[barrel_mask]))
+                        self.output['mT'].fill(group=group, dataset=dataset,
+                                               category=cat, numerator=label[0],
+                                               fake=label[1], pt_bin=pt_bin,
+                                               eta_bin=eta_endcap_bin, mode=mode,
+                                               weight=weight[endcap_mask],
+                                               mT=ak.flatten(mT[endcap_mask]))
+                
         return self.output
 
     def postprocess(self, accumulator):
@@ -479,15 +482,20 @@ class JetFakingMuProcessor(processor.ProcessorABC):
             num_mask = (ak.num(numerator, axis=1)>0)
             num_weights = denom_weights[num_mask]
             numerator = numerator[num_mask]
-            self.cutflow.fill_mask(ak.sum(ak.num(numerator)), 'numerator', cat)
+            self.cutflow.fill_mask(ak.sum(ak.num(numerator)), 'numerator', cat)            
 
-            d_fake, d_prompt = gen_match_lepton(denominator, 'm', cat)
-            n_fake, n_prompt = gen_match_lepton(numerator, 'm', cat)
-
-            final_states = {('denominator', 'prompt'): d_prompt,
-                            ('denominator', 'fake'): d_fake,
-                            ('numerator', 'prompt'): n_prompt,
-                            ('numerator', 'fake'): n_fake}
+            final_states = {}
+            if is_data:
+                final_states = {('denominator', 'data'): denominator,
+                                ('numerator', 'data'): numerator}
+            else:
+                d_fake, d_prompt = gen_match_lepton(denominator, 'm', cat)
+                n_fake, n_prompt = gen_match_lepton(numerator, 'm', cat)
+                
+                final_states = {('denominator', 'prompt'): d_prompt,
+                                ('denominator', 'fake'): d_fake,
+                                ('numerator', 'prompt'): n_prompt,
+                                ('numerator', 'fake'): n_fake}
             
             # fill denominator/numerator regions with fake/prompt events
             for label, data in final_states.items():
@@ -521,11 +529,12 @@ class JetFakingMuProcessor(processor.ProcessorABC):
                                        category=cat, leg='3',
                                        numerator=label[0], fake=label[1],
                                        pt=pt)
-
-            self.output["denominator_fake"] += self.accumulate(d_fake['data'])
-            self.output["denominator_prompt"] += self.accumulate(d_prompt['data'])
-            self.output["numerator_fake"] += self.accumulate(n_fake['data'])
-            self.output["numerator_prompt"] += self.accumulate(n_prompt['data'])
+                
+            if not is_data:
+                self.output["denominator_fake"] += self.accumulate(d_fake['data'])
+                self.output["denominator_prompt"] += self.accumulate(d_prompt['data'])
+                self.output["numerator_fake"] += self.accumulate(n_fake['data'])
+                self.output["numerator_prompt"] += self.accumulate(n_prompt['data'])
 
             
         return self.output

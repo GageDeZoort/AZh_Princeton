@@ -16,9 +16,8 @@ def open_yaml(f):
     return loaded_file
 
 def load_sample_info(f):
-    return np.genfromtxt(f, delimiter=',', 
-                         names=True, comments='#',
-                         dtype=np.dtype([('f0', '<U9'), ('f1', '<U12'),
+    return np.genfromtxt(f, delimiter=',', names=True, comments='#',
+                         dtype=np.dtype([('f0', '<U9'), ('f1', '<U32'),
                                          ('f2', '<U32'), ('f3', '<U250'),
                                          ('f4', '<f16'), ('f5', '<f8')]))
 

@@ -21,7 +21,7 @@ def parse_args():
     parser = argparse.ArgumentParser('prepare.py')
     add_arg = parser.add_argument
     add_arg('-i', '--infile', default='')
-    add_arg('-m', '--mode', default='e')
+    add_arg('-m', '--mode', default=-1)
     add_arg('-y', '--year', default=2018)
     add_arg('-s', '--source', default='MC')
     add_arg('-o', '--outdir', default="output")
@@ -31,8 +31,8 @@ def parse_args():
     add_arg('--sample-info', default='')
     add_arg('--show-config', action='store_true')
     add_arg('--interactive', action='store_true')
-    add_arg('--min-workers', default=40)
-    add_arg('--max-workers', default=80)
+    add_arg('--min-workers', default=120)
+    add_arg('--max-workers', default=300)
     add_arg('--pileup-tables', default='')
     return parser.parse_args()
 
@@ -64,6 +64,7 @@ else:
     MC_fileset = get_fileset(join(indir, MC_string+'.yaml'))
     pileup_tables = get_pileup_tables(MC_fileset.keys(), year,
                                       UL=use_UL, pileup_dir='pileup')
+    print('using,', pileup_tables)
     fileset.update(MC_fileset)
     sample_info = load_sample_info(join('sample_lists', MC_string+'.csv'))
 
@@ -76,7 +77,10 @@ else:
         sample_info = np.append(sample_info,
                                 load_sample_info(join('sample_lists',
                                                       data_string+'.csv')))
-
+fileset = {k: v for k, v in fileset.items()
+           if 'ggA' not in k}
+fileset = {k: v for k, v in fileset.items()
+           if 'DoubleMuon' not in k}
 
 # start timer, initiate cluster, ship over files
 tic = time.time()
@@ -109,10 +113,10 @@ outfile_map = {'e': 'test_fr_ele.coffea', 'm': 'test_fr_mu.coffea',
                'lt': 'test_fr_lt_coffea', 'tt': 'test_fr_tt.coffea'}
 processor_instance = SS4lFakeRateProcessor(sample_info=sample_info,
                                            mode=args.mode,
-                                           pileup_tables=pileup_tables)
-if args.mode=='t':
-    print("For jet-->tau_h rates, please specify either 'lllt' or 'lltt'")
-    exit
+                                           pileup_tables=pileup_tables[0])
+#if args.mode=='t':
+#    print("For jet-->tau_h rates, please specify either 'lllt' or 'lltt'")
+#    exit
 
 hists, metrics = processor.run_uproot_job(
    fileset,
@@ -121,7 +125,7 @@ hists, metrics = processor.run_uproot_job(
    executor=processor.dask_executor,
    executor_args=exe_args,
    #maxchunks=20,
-   chunksize=100000
+   chunksize=50000
 )
 
 # measure, report summary statistics
@@ -133,4 +137,5 @@ logging.info(f"Events/s: {metrics['entries'] / elapsed:.0f}")
 
 # dump output
 outdir = '/srv'
+#utils.save(hists, os.path.join(args.outdir, 'test_fr.coffea'))
 util.save(hists, os.path.join(args.outdir, outfile_map[args.mode]))

@@ -55,5 +55,7 @@ def get_pileup_weights(pileup_MC, bin_weights, bins):
     pileup_MC = pileup_MC.to_numpy().astype(int)
     bin_idx = np.digitize(pileup_MC, bins) - 1
     #bin_idx[bin_idx<0] = 0
+    bin_idx[bin_idx>98] = 98
+    bin_idx[bin_idx<0] = 0
     return bin_weights[bin_idx]
     

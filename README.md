@@ -12,6 +12,15 @@ The *AZh* analysis targets decays of a heavy pseudoscalar Higgs boson (*A*) to a
 ## Usage
 This analysis may be run locally via `run_analysis.py`. Alternatively, it may be run via the LPCJobQueue (see `https://github.com/CoffeaTeam/lpcjobqueue`) through `run_distributed_analysis.py`. 
 
+## Selections
+### Triggers 
+Single light lepton triggers are used to identify Z-->ll decays. Trigger selections and filters are applied by functions in ```selections/preselections.py```. The following triggers and filters are used in this analysis:  
+
+| Type | Year | Path | Filter | 
+| :--: | :--: | :--: | :----: |
+| Single Electron | 2018 | Ele35_WPTight_Gsf |  | 
+| Single Muon | 2018 | IsoMu27  |  |
+
 ## Data
 ### Pileup
 Following the recommendations in https://twiki.cern.ch/twiki/bin/viewauth/CMS/PileupJSONFileforData,
@@ -25,3 +34,10 @@ Recommended luminosity, golden JSON file information: https://twiki.cern.ch/twik
 - 2016: 16.81 fb^-1 
 - 2017: 41.48 fb^-1
 - 2018: 59.83 fb^-1
+
+## Simulation
+### Samples and Generator Parameters
+Sample csv files containing DAS strings, xrootd redirectors, and cross sections are stored in the ```sample_lists``` directory. All cross sections are listed in picobarns. Several utilities are available to process these sample lists:
+- ```sample_lists/make_sample_yaml.py``` produces a yaml file containing a *fileset*, or a dictionary with entries of the form ```dataset: [file1, file2,...]```, for a given csv. </br></br> **Example usage**: ```python make_sample_yaml.py -s MC_UL -y 2018``` </br></br> 
+- ```sample_lists/sample_yamls/adjust_xrootd_endpoints.py``` adjusts the endpoints specified for each file in a fileset. </br></br> **Example usage**: ```python adjust_xrootd_endpoints.py -s MC_UL -y 2018``` </br></br>
+

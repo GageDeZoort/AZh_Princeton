@@ -1,11 +1,17 @@
 import os
+import sys
 import json
 import argparse
 import subprocess
+from os.path import join
+from functools import partial
 import yaml
 import numpy as np
 import logging
 import uproot 
+import multiprocessing as mp
+sys.path.append('../../')
+from utils.sample_utils import*
 
 log_format = '%(asctime)s %(levelname)s %(message)s'
 logging.basicConfig(level=logging.DEBUG, format=log_format)
@@ -15,6 +21,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-s', '--source', default='MC')
 parser.add_argument('-y', '--year', default='')
 parser.add_argument('--process', default='')
+parser.add_argument('--n-workers', default=20)
 args = parser.parse_args()
 
 # open list of samples 
@@ -28,12 +35,102 @@ with open(fname) as stream:
       
 # open list of sample properties
 fname = "../{0}_{1}.csv".format(args.source, args.year)
-props = np.genfromtxt(fname,delimiter=',', names=True, comments='#',
-                      dtype=np.dtype([('f0', '<U32'), ('f1', '<U32'), 
-                                      ('f2', '<U32'), ('f3', '<U250'), 
-                                      ('f4', '<f16'), ('f5', '<f8')]))
-
+props = load_sample_info(fname)
 output = {d: f for d, f in datafiles.items()}
+
+class SamplePathProcessor:
+   def __init__(self, dataset=''): 
+      self.dataset=dataset
+      self.previous_endpoints = []
+      
+   def check_endpoint(self, ep, file):
+      logging.info(f'Checking {ep} + {file}')
+      good_path = ep + file
+      try: 
+         open_file = uproot.open(good_path)
+         logging.info(f'SUCCEEDED in loading file with {ep}.')
+         return good_path
+      except: 
+         logging.info(f'FAILED to load file with {ep}.')
+         return None
+         
+   def try_redirector(self, redirector, file):
+      path = '/store/' + file.split('/store/')[-1]
+      command = f'xrdfs {redirector} locate -d -m {path}'
+      logging.info(f'Running xrdfs:\n{command}\n')
+      try:
+         eps = subprocess.check_output(command,
+                                       shell=True).decode()
+         eps = ['root://' + ep.split(' ')[0] + '/'
+                for ep in eps.splitlines()]
+         for ep in eps:
+            good_path = self.check_endpoint(ep, file)
+            if (good_path is not None): 
+               return good_path
+            else: continue
+      except subprocess.CalledProcessError as e:
+         logging.info(f'Failed querying possible endpoints')
+      return None
+
+   def process_file(self, file):
+      previous_eps = np.unique(self.previous_endpoints)
+      split = file.split('/store/')
+      old_ep, file = split[0], f'/store/{split[-1]}'
+
+      # is file on the lpc? 
+      logging.info('Trying the LPC redirector')
+      good_path = self.check_endpoint('root://cmsxrootd-site.fnal.gov/', 
+                                      file)
+      if good_path is not None: return good_path
+
+      # the current endpoint 
+      logging.info('Trying the old endpoint.')
+      good_path = self.check_endpoint(old_ep, file)
+      if good_path is not None: return good_path
+      
+      # try previous endpoints that have worked for other files
+      found = False
+      logging.info('Resorting to previously identified endpoints.')
+      for ep in previous_eps:
+         good_path = self.check_endpoint(ep, file)
+         if good_path is not None: return good_path
+      
+      # try using LPC redirector
+      lpc_redirector = 'root://cmsxrootd-site.fnal.gov/'
+      #logging.info('Trying LPC redirector...')
+      #good_path = self.try_redirector(lpc_redirector, file)
+      #if good_path is not None: return good_path
+   
+      # try using CERN global redirector
+      global_redirector = 'root://cms-xrd-global.cern.ch/'
+      logging.info('Trying CERN global redirector...')
+      good_path = self.try_redirector(global_redirector, file)
+      if good_path is not None: return good_path
+      
+      logging.info(f'ERROR: no viable endpoints identified for {file}!')
+      return None
+
+def call_processor(file, processor=''):
+   return processor.process_file(file)
+
+for dataset, files in datafiles.items():
+   output[dataset] = files
+   processor = SamplePathProcessor(dataset=dataset)
+   with mp.Pool(processes=int(args.n_workers)) as pool:
+      process_func = partial(call_processor,
+                             processor=processor)
+      out = pool.map(process_func, files)
+      logging.info(f'Recovered the following endpoints {out}')
+      output[dataset] = out
+
+   if len(output[dataset]) != len(files):
+      logging.info(f'Failed to correctly identify files belonging to {dataset}')
+
+with open(f'{args.source}_{args.year}.yaml', 'w+') as f:
+   yaml.dump(output, f, default_flow_style=False)
+
+exit()
+
 
 # loop over each dataset and corresponding filelist
 for dataset, files in datafiles.items():
@@ -42,12 +139,6 @@ for dataset, files in datafiles.items():
       output[dataset] = files
       logging.info(f"Skipping {dataset}.")
       continue
-
-   # get sample properties
-   logging.info(f'Processing {dataset}')
-   dataset_name = dataset.replace(f'_{args.year}', '')
-   dataset_props = props[props['name']==dataset_name][0]
-   previous_endpoints = []
 
    if files==None: continue
    for file in files:

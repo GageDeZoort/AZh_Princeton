@@ -13,18 +13,22 @@ import multiprocessing as mp
 sys.path.append('../../')
 from utils.sample_utils import*
 
+# initialize logger
 log_format = '%(asctime)s %(levelname)s %(message)s'
 logging.basicConfig(level=logging.DEBUG, format=log_format)
 logging.info('Initializiaing')
 
+# parse command line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('-s', '--source', default='MC')
 parser.add_argument('-y', '--year', default='')
-parser.add_argument('--process', default='')
-parser.add_argument('--n-workers', default=20)
+parser.add_argument('-p', '--process', default=None)
+parser.add_argument('--n-workers', default=100)
 args = parser.parse_args()
 
-# open list of samples 
+# open list of samples in dictionary format, i.e.
+#    dataset: [file1, file2, ...]
+#    with file1 = endpoint + '/store/...'
 fname = "{0}_{1}.yaml".format(args.source, args.year)
 with open(fname) as stream:
    try:
@@ -32,18 +36,20 @@ with open(fname) as stream:
       logging.info(f"Loaded {fname}")
    except yaml.YAMLError as exc:
       print(exc)
-      
-# open list of sample properties
+
+# open list of sample properties (xsec, nevts, etc.)
 fname = "../{0}_{1}.csv".format(args.source, args.year)
 props = load_sample_info(fname)
 output = {d: f for d, f in datafiles.items()}
 
 class SamplePathProcessor:
-   def __init__(self, dataset=''): 
+   def __init__(self, dataset='', process=None): 
       self.dataset=dataset
       self.previous_endpoints = []
+      self.process=process
       
    def check_endpoint(self, ep, file):
+      ''' attempt to open a file with the given endpoint '''
       logging.info(f'Checking {ep} + {file}')
       good_path = ep + file
       try: 
@@ -55,6 +61,7 @@ class SamplePathProcessor:
          return None
          
    def try_redirector(self, redirector, file):
+      ''' attempt to open a file with a given redirector '''  
       path = '/store/' + file.split('/store/')[-1]
       command = f'xrdfs {redirector} locate -d -m {path}'
       logging.info(f'Running xrdfs:\n{command}\n')
@@ -73,34 +80,33 @@ class SamplePathProcessor:
       return None
 
    def process_file(self, file):
-      previous_eps = np.unique(self.previous_endpoints)
+      ''' find a way to open a given file '''
       split = file.split('/store/')
       old_ep, file = split[0], f'/store/{split[-1]}'
+      if ((self.process is not None) and (file!=self.process)):
+         return old_ep+file
 
-      # is file on the lpc? 
+      self.previous_endpoints.append(old_ep)
+      previous_eps = np.unique(self.previous_endpoints)
+
+      # is file on the lpc? --> if so, go for this option
       logging.info('Trying the LPC redirector')
       good_path = self.check_endpoint('root://cmsxrootd-site.fnal.gov/', 
                                       file)
       if good_path is not None: return good_path
 
-      # the current endpoint 
+      # otherwise, did the previous endpoint work? 
       logging.info('Trying the old endpoint.')
       good_path = self.check_endpoint(old_ep, file)
       if good_path is not None: return good_path
       
-      # try previous endpoints that have worked for other files
+      # maybe another file's endpoint works? 
       found = False
       logging.info('Resorting to previously identified endpoints.')
       for ep in previous_eps:
          good_path = self.check_endpoint(ep, file)
          if good_path is not None: return good_path
-      
-      # try using LPC redirector
-      lpc_redirector = 'root://cmsxrootd-site.fnal.gov/'
-      #logging.info('Trying LPC redirector...')
-      #good_path = self.try_redirector(lpc_redirector, file)
-      #if good_path is not None: return good_path
-   
+         
       # try using CERN global redirector
       global_redirector = 'root://cms-xrd-global.cern.ch/'
       logging.info('Trying CERN global redirector...')
@@ -113,9 +119,11 @@ class SamplePathProcessor:
 def call_processor(file, processor=''):
    return processor.process_file(file)
 
+
+# main routine
 for dataset, files in datafiles.items():
    output[dataset] = files
-   processor = SamplePathProcessor(dataset=dataset)
+   processor = SamplePathProcessor(dataset=dataset, process=args.process)
    with mp.Pool(processes=int(args.n_workers)) as pool:
       process_func = partial(call_processor,
                              processor=processor)
@@ -129,93 +137,7 @@ for dataset, files in datafiles.items():
 with open(f'{args.source}_{args.year}.yaml', 'w+') as f:
    yaml.dump(output, f, default_flow_style=False)
 
+
 exit()
 
-
-# loop over each dataset and corresponding filelist
-for dataset, files in datafiles.items():
-   output[dataset] = []
-   if args.process!='' and (args.process not in dataset): 
-      output[dataset] = files
-      logging.info(f"Skipping {dataset}.")
-      continue
-
-   if files==None: continue
-   for file in files:
-      # initial pass: try the given redirector
-      logging.info(f'Working with {file}')
-      try: 
-         uproot.open(file)
-         output[dataset].append(file)
-         good_endpoint = file.split('/store/')[0]
-         previous_endpoints.append(good_endpoint)
-         continue
-      except:
-         logging.info(f'Grabbing new xrd endpoint for {file}')
-         
-      # try previous endpoints that have worked:
-      found = False
-      for ep in previous_endpoints:
-         try:
-            file = ep + '/store/' + file.split('/store/')[-1]
-            uproot.open(file)
-            output[dataset].append(file)
-            found = True
-            break
-         except:
-            logging.debug(f'Tried and failed to use {ep}')
-      if found: continue
-
-      # otherwise, need to resort to lpc or global redirectors 
-      lpc_redirector = 'root://cmsxrootd-site.fnal.gov/'
-      global_redirector = 'root://cms-xrd-global.cern.ch/'
-      
-      # try lpc redirector
-      try:
-         file = lpc_redirector + '/store/' + file.split('/store/')[-1]
-         uproot.open(file)
-         output[dataset].append(file)
-         found = True
-         break
-      except:
-         logging.debug(f'Tried and failed to use {lpc_redirector}')
-      if found: continue
-         
-      # otherwise grab an exact endpoint
-      path = '/store/' + file.split('/store/')[-1]
-      command = f'xrdfs {lpc_redirector} locate -d -m {path}'
-      logging.debug(f'Running xrdfs:\n{command}\n')
-      try:
-         endpoints = subprocess.check_output(command, 
-                                             shell=True).decode()
-         endpoint = 'root://' + endpoints.split(' Server Read')[0] + '/'
-         logging.info(f'Identified good endpoint: {endpoint}')
-         file = endpoint + path
-         logging.info(f'Updated file: {file}')
-         output[dataset].append(file)
-         previous_endpoints.append(endpoint)
-         continue
-      except subprocess.CalledProcessError as e:
-            logging.info(f'Trying global redirector')
-         
-      # try global redirector
-      command = f'xrdfs {global_redirector} locate -d -m {path}'
-      logging.debug(f'Running xrdfs:\n{command}\n')
-      try:
-         endpoints = subprocess.check_output(command, 
-                                             shell=True).decode()
-         endpoint = 'root://' + endpoints.split(' Server Read')[0] + '/'
-         logging.info(f'Identified exact endpoint: {endpoint}')
-         file = endpoint + path
-         logging.info(f'Updated file: {file}')
-         output[dataset].append(file)
-         previous_endpoints.append(endpoint)
-      except subprocess.CalledProcessError as e:
-         logging.warning(f'SKIPPING FILE {file}')
-
-   if len(output[dataset]) != len(files):
-      logging.info(f'Failed to correctly identify files belonging to {dataset}')
-
-   with open(f'{args.source}_{args.year}.yaml', 'w+') as f:
-      yaml.dump(output, f, default_flow_style=False)
 

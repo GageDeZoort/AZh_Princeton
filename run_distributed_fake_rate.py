@@ -78,9 +78,13 @@ else:
                                 load_sample_info(join('sample_lists',
                                                       data_string+'.csv')))
 fileset = {k: v for k, v in fileset.items()
-           if 'ggA' not in k}
-fileset = {k: v for k, v in fileset.items()
-           if 'DoubleMuon' not in k}
+           if (('ggA' not in k) and
+               ('ZZto4e' not in k) and
+               ('ZZto4mu' not in k) and
+               ('ZZto4tau' not in k) and
+               ('ZZto2e2mu' not in k) and
+               ('ZZto2e2tau' not in k) and
+               ('ZZto2mu2tau' not in k))}
 
 # start timer, initiate cluster, ship over files
 tic = time.time()

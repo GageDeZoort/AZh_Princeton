@@ -138,15 +138,15 @@ def gen_match_lepton(lltt, jet_faking_x, cat, weights):
     elif (jet_faking_x=='m'):
         prompt_mask = ((t1.genPartFlav==1) | 
                        (t1.genPartFlav==15))
-        return lltt[~prompt_mask], lltt[prompt_mask]
+        #return lltt[~prompt_mask], lltt[prompt_mask]
     else: # (jet_faking_x=='t'):
         prompt_mask = ((t2.genPartFlav>0) &
                        (t2.genPartFlav<6))
-
     prompt_mask = (ak.sum(prompt_mask, axis=1)>0)
-    fake = {'data': lltt.mask[~prompt_mask],
+    print(prompt_mask)
+    fake = {'data': lltt[~prompt_mask],
             'weights': weights[~prompt_mask]}
-    prompt = {'data': lltt.mask[prompt_mask],
+    prompt = {'data': lltt[prompt_mask],
               'weights': weights[prompt_mask]}
     
     return fake, prompt

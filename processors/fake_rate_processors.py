@@ -66,7 +66,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         pt_hist = hist.Hist("Counts", group_axis, dataset_axis,
                             category_axis, leg_axis, fake_axis,
                             numerator_axis, mode_axis,
-                            hist.Bin("pt", "$p_T$ [GeV]", 30, 0, 150))
+                            hist.Bin("pt", "$p_T$ [GeV]", 7, 0, 140))
         eta_hist = hist.Hist("Counts", group_axis, dataset_axis,
                              category_axis, leg_axis, fake_axis,
                              numerator_axis, mode_axis,
@@ -90,7 +90,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         mT_hist = hist.Hist("Counts", group_axis, fake_axis,
                             dataset_axis, category_axis, mode_axis,
                             numerator_axis, pt_axis, eta_axis,
-                            hist.Bin("mT", "$m_T$", 40, 0, 200))
+                            hist.Bin("mT", "$m_T$", 10, 0, 200))
 
         # accumulator for hists and arrays
         self._accumulator = processor.dict_accumulator(
@@ -253,8 +253,15 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                     mask = (ak.sum(~ak.is_none(data, axis=1), axis=1) > 0)
                     data, weight = data[mask], weight[mask]
                     mtt = ak.flatten((data['tt']['t1']+data['tt']['t2']).mass)
-                    pt = ak.flatten(data['tt']['t1'].pt)
-                    if len(mtt)==0: continue
+                    pt_dict = {'1': ak.flatten(data['tt']['t1'].pt),
+                               '2': ak.flatten(data['tt']['t2'].pt)}
+                    for leg, pt in pt_dict.items():
+                        self.output['pt'].fill(group=group, dataset=dataset,
+                                               category=cat, leg=leg,
+                                               numerator=label[0],
+                                               fake=label[1], weight=weight,
+                                               mode=mode, pt=pt)
+
                     self.output['mtt'].fill(group=group, dataset=dataset, mode=mode,
                                             category=cat, numerator=label[0],
                                             fake=label[1], mtt=mtt, weight=weight)
@@ -266,8 +273,6 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                         tau = data['tt']['t1']
                         mT = np.sqrt(tau.energy**2 - tau.pt**2)
                         pt_mask = ((tau.pt > pt_range[0]) & (tau.pt < pt_range[1]))            
-                        #barrel_mask = (ak.num((abs(tau.eta) < 1.479) & pt_mask) > 0)
-                        #endcap_mask = (ak.num((abs(tau.eta) > 1.479) & pt_mask) > 0)
                         barrel_mask = ak.flatten((abs(tau.eta) < 1.479) & pt_mask)
                         endcap_mask = ak.flatten((abs(tau.eta) > 1.479) & pt_mask)
                         self.output['mT'].fill(group=group, dataset=dataset,
@@ -282,7 +287,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                                                eta_bin=eta_endcap_bin, mode=mode,
                                                weight=weight[endcap_mask],
                                                mT=ak.flatten(mT[endcap_mask]))
-                
+                                            
         return self.output
 
     def postprocess(self, accumulator):

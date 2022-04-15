@@ -2,6 +2,8 @@
 ## Overview
 The *AZh* analysis targets decays of a heavy pseudoscalar Higgs boson (*A*) to a *Z* boson and a Standard Model Higgs boson (*h*), where the *Z* decays to two light leptons (electrons or muons) and the SM Higgs decays to two taus. The taus decay hadronically or leptonically to an electron or muon. The corresponding four-lepton final states are specifed by four characters, the first two describing the Z-decay leptons and the second two describing the tau decay: 'e' = tau decay to an electron, 'm' = tau decay to a muon, 't' = hadronic tau decay. In this notation the following four-lepton final states ("categories") are considered: eeet, eemt, eett, eeem, mmet, mmmt, mmtt, and mmem. 
 
+Several portions of this analysis can accomodate legacy data; however, the full implementation is suitable for processing ultra-legacy (UL) data. 
+
 ## Organization
 - **Selections**: The analysis selections are stored as functions in `preselections.py` and `tight.py`. In general, these functions return masks that whittle down the number of objects in an event or the number of events in consideration. 
 - **Processors**: Currently, all analysis selections are applied in the `preselector.py` processor. This processor loops over each final state category and adds relevant quantities to histograms. For example, loose lepton selections stored in `preselections.py` generate loose_electrons, loose_muons, and loose_taus used to build each four-lepton final state. The processor also contains a Numba implementation of the **FastMtt** ditau mass correction algorithm, whose original implementation may be found here: `https://github.com/SVfit/ClassicSVfit/tree/fastMTT_19_02_2019`. 
@@ -13,6 +15,7 @@ The *AZh* analysis targets decays of a heavy pseudoscalar Higgs boson (*A*) to a
 This analysis may be run locally via `run_analysis.py`. Alternatively, it may be run via the LPCJobQueue (see `https://github.com/CoffeaTeam/lpcjobqueue`) through `run_distributed_analysis.py`. 
 
 ## Selections
+The following selections are implemented in `selections/preselections.py`. 
 ### Triggers 
 Single light lepton triggers are used to identify Z-->ll decays. Trigger selections and filters are applied by functions in ```selections/preselections.py```. The following triggers and filters are used in this analysis:  
 
@@ -20,6 +23,20 @@ Single light lepton triggers are used to identify Z-->ll decays. Trigger selecti
 | :--: | :--: | :--: | :----: |
 | Single Electron | 2018 | Ele35_WPTight_Gsf |  | 
 | Single Muon | 2018 | IsoMu27  |  |
+
+### MET Filters
+MET filters are applied to rejecct spurious sources of MET, e.g. cosmic ray contamination. MET filters are applied according to the recommendations in the [MissingETOptionalFiltersRun2 Twiki](https://twiki.cern.ch/twiki/bin/viewauth/CMS/MissingETOptionalFiltersRun2#2018_2017_data_and_MC_UL). 
+
+### Primary Vertex Filters
+The main primary vertex in each event is required to have > 4 degrees of freedom and to satisfy |z| < 24cm and \sqrt{x^2 + y^2} < 2cm. 
+
+### b-Jet Filters
+b-jets are required to be baseline jets passing the medium DeepFlavorJet discrimination working points listed in the [BtagRecommendation Twiki](https://twiki.cern.ch/twiki/bin/viewauth/CMS/BtagRecommendation). Relevant b-tag scale factor calculations are detailed in the [BTagSFMethods Twiki](https://twiki.cern.ch/twiki/bin/view/CMS/BTagSFMethods#b_tagging_efficiency_in_MC_sampl).
+- [2018 UL](https://twiki.cern.ch/twiki/bin/view/CMS/BtagRecommendation106XUL18): 'btagDeepFlavB > 0.2783'
+- [2017 UL](https://twiki.cern.ch/twiki/bin/view/CMS/BtagRecommendation106XUL17): 'btagDeepFlavB > 0.3040'
+- [2016postVFP UL](https://twiki.cern.ch/twiki/bin/view/CMS/BtagRecommendation106XUL16postVFP): 'btagDeepFlavB > 0.2489'
+- [2016preVFP UL](https://twiki.cern.ch/twiki/bin/view/CMS/BtagRecommendation106XUL16preVFP): 'btagDeepFlavB > 0.2598'
+
 
 ## Data
 ### Pileup

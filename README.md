@@ -21,8 +21,13 @@ Single light lepton triggers are used to identify Z-->ll decays. Trigger selecti
 
 | Type | Year | Path | Filter | 
 | :--: | :--: | :--: | :----: |
-| Single Electron | 2018 | Ele35_WPTight_Gsf |  | 
-| Single Muon | 2018 | IsoMu27  |  |
+| Single Electron | 2017/18 | Ele35_WPTight_Gsf | HLTEle35WPTightGsfSequence | 
+| | 2016 | HLT_Ele25_eta2p1_WPTight_Gsf | hltEle25erWPTightGsfTrackIsoFilter |
+| Single Muon | 2017/18 | IsoMu27  | hltL3crIsoL1sMu * Filtered0p07 |
+| | 2016 | HLT_IsoMu24 | hltL3crIsoL1sMu * L3trkIsoFiltered0p09  | 
+| | 2016 | HLT_IsoTkMu24 | hltL3fL1sMu * L3trkIsoFiltered0p09 | 
+
+The listed trigger filters are the final filters in the respective HLT trigger path. All paths and their respective filters are listed in the [TriggerPaths Git Repo](https://github.com/UHH2/TriggerPaths); given a specific year, you can search for a relevant trigger path and find all of its relevant filters. 
 
 ### MET Filters
 MET filters are applied to rejecct spurious sources of MET, e.g. cosmic ray contamination. MET filters are applied according to the recommendations in the [MissingETOptionalFiltersRun2 Twiki](https://twiki.cern.ch/twiki/bin/viewauth/CMS/MissingETOptionalFiltersRun2#2018_2017_data_and_MC_UL). 
@@ -32,10 +37,11 @@ The main primary vertex in each event is required to have > 4 degrees of freedom
 
 ### b-Jet Filters
 b-jets are required to be baseline jets passing the medium DeepFlavorJet discrimination working points listed in the [BtagRecommendation Twiki](https://twiki.cern.ch/twiki/bin/viewauth/CMS/BtagRecommendation). Relevant b-tag scale factor calculations are detailed in the [BTagSFMethods Twiki](https://twiki.cern.ch/twiki/bin/view/CMS/BTagSFMethods#b_tagging_efficiency_in_MC_sampl).
-- [2018 UL](https://twiki.cern.ch/twiki/bin/view/CMS/BtagRecommendation106XUL18): 'btagDeepFlavB > 0.2783'
-- [2017 UL](https://twiki.cern.ch/twiki/bin/view/CMS/BtagRecommendation106XUL17): 'btagDeepFlavB > 0.3040'
-- [2016postVFP UL](https://twiki.cern.ch/twiki/bin/view/CMS/BtagRecommendation106XUL16postVFP): 'btagDeepFlavB > 0.2489'
-- [2016preVFP UL](https://twiki.cern.ch/twiki/bin/view/CMS/BtagRecommendation106XUL16preVFP): 'btagDeepFlavB > 0.2598'
+- [2018 UL](https://twiki.cern.ch/twiki/bin/view/CMS/BtagRecommendation106XUL18): `btagDeepFlavB > 0.2783`
+- [2017 UL](https://twiki.cern.ch/twiki/bin/view/CMS/BtagRecommendation106XUL17): `btagDeepFlavB > 0.3040`
+- [2016postVFP UL](https://twiki.cern.ch/twiki/bin/view/CMS/BtagRecommendation106XUL16postVFP): `btagDeepFlavB > 0.2489`
+- [2016preVFP UL](https://twiki.cern.ch/twiki/bin/view/CMS/BtagRecommendation106XUL16preVFP): `btagDeepFlavB > 0.2598`
+
 
 
 ## Data

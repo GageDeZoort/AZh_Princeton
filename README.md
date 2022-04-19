@@ -45,11 +45,23 @@ b-jets are required to be baseline jets passing the medium DeepFlavorJet discrim
 
 
 ## Data
-### Pileup
+### Samples 
+Samples are organized in to sample .csv files containing sample names, event counts, etc. and sample .yaml files containing `sample: [file1, file2, ...]` dictionaries. Sample .csv files are listed in `sample_lists/` and sample .yaml files are listed in `sample_lists/sample_yamls/`. 
+- 2018: `sample_lists/data_UL_2018.csv`, `sample_lists/sample_yamls/data_UL_2018.yaml`
+- 2017: `sample_lists/data_UL_2017.csv`, `sample_lists/sample_yamls/data_UL_2017.yaml`
+- 2016postVFP: `sample_lists/data_UL_2016postVFP.csv`, `sample_lists/sample_yamls/data_UL_2016postVFP.yaml`
+- 2016preVFP: `sample_lists/data_UL_2016preVFP.csv`, `sample_lists/sample_yamls/data_UL_2016preVFP.yaml`
+
+### Pileup Weights
 Following the recommendations in https://twiki.cern.ch/twiki/bin/viewauth/CMS/PileupJSONFileforData,
 - 2018: /afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions18/13TeV/PileUp/UltraLegacy/
 - 2017: /afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions17/13TeV/PileUp/UltraLegacy/
 - 2016: /afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions16/13TeV/PileUp/UltraLegacy/
+
+Pileup utilities, weights, files, etc. are stored in `pileup/`. Pileup weights are derived from the ratio of the data pileup distribution (from the corresponding file above) to the relevant MC pileup distribution. These weights are pre-derived and queried at run-time during the analysis. To derive the weights, run a command similar to the following:
+</br></br>
+**Exmple Usage**: ```python make_MC_pileup_file.py -y 2018 -s MC_UL```
+</br></br>
 
 ### Golden JSONs
 Recommended luminosity, golden JSON file information: https://twiki.cern.ch/twiki/bin/view/CMS/TWikiLUM

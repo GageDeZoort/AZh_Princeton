@@ -9,13 +9,3 @@ data,SingleMuon,/cmsxrootd-site.fnal.gov/,/SingleMuon/Run2017C-UL2017_MiniAODv2_
 data,SingleMuon,/cmsxrootd-site.fnal.gov/,/SingleMuon/Run2017D-UL2017_MiniAODv2_NanoAODv9-v1/NANOAOD,70361660,1
 data,SingleMuon,/cmsxrootd-site.fnal.gov/,/SingleMuon/Run2017E-UL2017_MiniAODv2_NanoAODv9-v1/NANOAOD,154618774,1
 data,SingleMuon,/cmsxrootd-site.fnal.gov/,/SingleMuon/Run2017F-UL2017_MiniAODv2_NanoAODv9-v1/NANOAOD,242140980,1
-data,,,/DoubleMuon/Run2017B-UL2017_MiniAODv2_NanoAODv9-v1/NANOAOD,14501767,
-data,,,/DoubleMuon/Run2017C-UL2017_MiniAODv2_NanoAODv9-v1/NANOAOD,49636525,
-data,,,/DoubleMuon/Run2017D-UL2017_MiniAODv2_NanoAODv9-v1/NANOAOD,23075733,
-data,,,/DoubleMuon/Run2017E-UL2017_MiniAODv2_NanoAODv9-v1/NANOAOD,51531477,
-data,,,/DoubleMuon/Run2017F-UL2017_MiniAODv2_NanoAODv9-v1/NANOAOD,79756560,
-data,,,/DoubleEG/Run2017B-UL2017_MiniAODv2_NanoAODv9-v1/NANOAOD,58088760,
-data,,,/DoubleEG/Run2017C-UL2017_MiniAODv2_NanoAODv9-v1/NANOAOD,65181125,
-data,,,/DoubleEG/Run2017D-UL2017_MiniAODv2_NanoAODv9-v1/NANOAOD,25911432,
-data,,,/DoubleEG/Run2017E-UL2017_MiniAODv2_NanoAODv9-v1/NANOAOD,56241190,
-data,,,/DoubleEG/Run2017F-UL2017_MiniAODv2_NanoAODv9-v1/NANOAOD,74265012,

@@ -53,19 +53,23 @@ for i in range(len(f)):
     outfile.write(f"{name}:\n")
     
     # list all files in sample
-    print('...sample:', sample)
     query = '"file dataset={0}"'.format(sample)
     command = 'dasgoclient --query={0}'.format(query)
     try: 
         sample_files = subprocess.check_output(command, shell=True).decode('ascii')
+        
     except: 
+        print('!!!! No files found for\n', command)
         continue
-    
+
     if (found_previous):
         try: previous_paths = previous_fileset[name]
         except: previous_paths = {}
-        prev_ep_dict = {'/store/'+p.split('/store/')[-1]: p.split('/store/')[0]
-                        for p in previous_paths}
+        try:
+            prev_ep_dict = {'/store/'+p.split('/store/')[-1]: p.split('/store/')[0]
+                            for p in previous_paths}
+        except:
+            continue
 
     sample_files = sample_files.split('\n')[:-1]
     for sample_file in sample_files:

@@ -114,7 +114,7 @@ exe_args = {
 
 # instantiate processor module
 outfile_map = {'e': 'test_fr_ele.coffea', 'm': 'test_fr_mu.coffea',
-               'lt': 'test_fr_lt_coffea', 'tt': 'test_fr_tt.coffea'}
+               'lt': 'test_fr_lt.coffea', 'tt': 'test_fr_tt.coffea'}
 processor_instance = SS4lFakeRateProcessor(sample_info=sample_info,
                                            mode=args.mode,
                                            pileup_tables=pileup_tables[0])

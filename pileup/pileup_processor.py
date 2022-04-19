@@ -38,11 +38,12 @@ class PileupProcessor(processor.ProcessorABC):
         self.output = self.accumulator.identity()
         filename = events.metadata['filename']
         dataset = events.metadata['dataset']
+        print(dataset)
         pileup_mc = events.Pileup.nTrueInt
-        gen_weight = events.genWeight
+        #gen_weight = events.genWeight
         self.output['pileup_mc'].fill(pileup=pileup_mc,
-                                      dataset=dataset, 
-                                      weight=gen_weight)
+                                      dataset=dataset) 
+                                      #weight=gen_weight)
         
         return self.output
 

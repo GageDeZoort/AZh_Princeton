@@ -14,6 +14,16 @@ Several portions of this analysis can accomodate legacy data; however, the full 
 ## Usage
 This analysis may be run locally via `run_analysis.py`. Alternatively, it may be run via the LPCJobQueue (see `https://github.com/CoffeaTeam/lpcjobqueue`) through `run_distributed_analysis.py`. 
 
+### LPCJobQueue
+To run the analysis as a set of distributed jobs on the LPC Condor cluster, we use the [lpcjobqueue](https://github.com/CoffeaTeam/lpcjobqueue) Dask+Coffea job submission package. In particular, we use a [custom implementation](https://github.com/GageDeZoort/lpcjobqueue) in order to tune configuration parameters. Please see the corresponding repos for setup instructions. A dummy script that loads a set of sample files is available to test the distributed job submission process: 
+</br></br>
+**Example Usage**: 
+```python
+./shell
+python test_distributed_processor.py -s MC_UL -y 2018
+```
+</br>
+
 ## Selections
 The following selections are implemented in `selections/preselections.py`. 
 ### Triggers 

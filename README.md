@@ -86,3 +86,9 @@ Sample csv files containing DAS strings, xrootd redirectors, and cross sections 
 - ```sample_lists/make_sample_yaml.py``` produces a yaml file containing a *fileset*, or a dictionary with entries of the form ```dataset: [file1, file2,...]```, for a given csv. </br></br> **Example usage**: ```python make_sample_yaml.py -s MC_UL -y 2018``` </br></br> 
 - ```sample_lists/sample_yamls/adjust_xrootd_endpoints.py``` adjusts the endpoints specified for each file in a fileset. </br></br> **Example usage**: ```python adjust_xrootd_endpoints.py -s MC_UL -y 2018``` </br></br>
 
+#### Sample Weights
+Each sample is weighted by the data-MC luminosity ratio to normalize the expected MC contribution to the observed data contribution. 
+
+#### DY+Jets Stitching 
+In order to increase the statistics in the phase space Z+jets events with 1-4 jets, we use dedicated *exclusive* DY+nJets, where n=1,2,3,4,  samples in addition to an *inclusive* sample of DY+Jets with any number of jets. These events have to be carefully weighted to account for the fact that multiple samples contribute relevant events. The process of weighting these events is called [MC stitching](https://arxiv.org/abs/2106.04360). 
+

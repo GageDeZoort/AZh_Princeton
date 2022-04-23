@@ -15,7 +15,8 @@ The conda environment (called `AZh`) necessary to run the tools in this repo is 
 
 To run distributed jobs via Dask on the LPC Condor cluster, use the lpcjobqueue package. I've forked a version to customize for this analysis. To install a working copy of lpcjobqueue in your analysis area run: 
 
-```curl -OL https://raw.githubusercontent.com/GageDeZoort/lpcjobqueue/main/bootstrap.sh
+```bash
+curl -OL https://raw.githubusercontent.com/GageDeZoort/lpcjobqueue/main/bootstrap.sh
 bash bootstrap.sh
 ```
 

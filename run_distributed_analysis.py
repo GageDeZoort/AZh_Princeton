@@ -21,12 +21,17 @@ def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser('prepare.py')
     add_arg = parser.add_argument
+    add_arg('-y', '--year', default='2018')
+    add_arg('--use-data', action='store_true')
+    add_arg('--use-MC', action='store_true')
+    add_arg('--use-signal', action='store_true')
+    add_arg('--use-legacy', action='store_true')
     add_arg('config', nargs='?', default='configs/MC_2018_config.yaml')
     add_arg('-v', '--verbose', action='store_true')
     add_arg('--show-config', action='store_true')
     add_arg('--interactive', action='store_true')
-    add_arg('--min-workers', default=60)
-    add_arg('--max-workers', default=120)
+    add_arg('--min-workers', default=100)
+    add_arg('--max-workers', default=200)
     return parser.parse_args()
 
 # parse the command line
@@ -38,56 +43,54 @@ log_level = logging.DEBUG if args.verbose else logging.INFO
 logging.basicConfig(level=log_level, format=log_format)
 logging.info('Initializing')
 
-# load configuration
-with open(args.config) as f:
-    config = yaml.load(f, yaml.FullLoader)
-    logging.info(f'Configuration: {config}')
-
 # relevant parameters
-year = config['sample']['year']
-use_data = config['sample']['use_data']
-use_UL_data = config['sample']['use_UL_data']
-use_MC = config['sample']['use_MC']
-use_UL_MC = config['sample']['use_UL_MC']
+year = args.year
+use_MC, use_signal = args.use_MC, args.use_signal
+use_data, use_UL = args.use_data, (not args.use_legacy)
 indir = "sample_lists/sample_yamls"
 
 # build fileset and corresponding sample info
 fileset = {}
 pileup_tables=None
 
+MC_string = f'MC_UL_{year}' if use_UL else f'MC_{year}'
 if use_MC:
-    MC_string = f'MC_UL_{year}' if use_UL_MC else f'MC_{year}'
     MC_fileset = get_fileset(join(indir, MC_string+'.yaml'))
     pileup_tables = get_pileup_tables(MC_fileset.keys(), year,
-                                      UL=use_UL_MC)
+                                      UL=use_UL, pileup_dir='pileup')
     fileset.update(MC_fileset)
-    
-# MC sample info
-sample_info = load_sample_info(join('sample_lists', 
+
+sample_info = load_sample_info(join('sample_lists',
                                     MC_string+'.csv'))
 
+signal_string = f'signal_UL_{year}' if use_UL else f'signal_{year}'
+if use_signal:
+    signal_fileset = get_fileset(join(indir, MC_string+'.yaml'))
+    pileup_tables = get_pileup_tables(MC_fileset.keys(), year,
+                                      UL=use_UL, pileup_dir='pileup')
+    fileset.update(signal_fileset)
+
+sample_info = np.append(sample_info, 
+                        load_sample_info(join('sample_lists', 
+                                              MC_string+'.csv')))
+
+data_string = f'data_UL_{year}' if use_UL else f'data_{year}'
 if use_data:
-    data_string = f'data_UL_{year}' if use_UL_data else f'data_{year}'
     data_fileset = get_fileset(join(indir, data_string+'.yaml'))
-    data_fileset = {key: val for key, val in data_fileset.items()
-                    if 'SingleMuon' in key}
+    data_fileset = {key: val for key, val in data_fileset.items()}
     fileset.update(data_fileset)
 
-# add data sample info
-data_sample_info = load_sample_info(join('sample_lists',
-                                         data_string+'.csv'))
-sample_info = np.append(sample_info, data_sample_info)
+sample_info = np.append(sample_info, 
+                        load_sample_info(join('sample_lists',
+                                              data_string+'.csv')))
 
 logging.info(f"Fileset:\n{fileset.keys()}")
-logging.info(f"Sample Info:\n{sample_info}")
 
 # start timer, initiate cluster, ship over files
 tic = time.time()
 infiles = ['processors/analysis_processor.py', 
            'selections/preselections.py',
-           'selections/tight_selections.py',
            'utils/cutflow.py', 
-           'utils/print_events.py',
            'pileup/pileup_utils.py',
            f'sample_lists/MC_{year}.csv',
            f'sample_lists/data_{year}.csv']

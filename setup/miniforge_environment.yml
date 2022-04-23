@@ -1,0 +1,14 @@
+name: AZh
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  - awkward
+  - uproot
+  - coffea
+  - jupyterlab
+  - pyyaml
+  - vector
+  - ipywidgets
+  - seaborn
+prefix: /uscms/home/jdezoort/nobackup/miniconda3/envs/AZh

@@ -4,6 +4,32 @@ The *AZh* analysis targets decays of a heavy pseudoscalar Higgs boson (*A*) to a
 
 Several portions of this analysis can accomodate legacy data; however, the full implementation is suitable for processing ultra-legacy (UL) data. 
 
+### Quickstart
+First grab a copy of the repo: 
+
+```git clone https://github.com/GageDeZoort/AZh_Princeton.git```
+
+The conda environment (called `AZh`) necessary to run the tools in this repo is stored in `setup/`. To create a copy of this environment, run:
+
+```conda env create -f setup/environment.yml```
+
+To run distributed jobs via Dask on the LPC Condor cluster, use the lpcjobqueue package. I've forked a version to customize for this analysis. To install a working copy of lpcjobqueue in your analysis area run: 
+
+curl -OL https://raw.githubusercontent.com/GageDeZoort/lpcjobqueue/main/bootstrap.sh
+bash bootstrap.sh
+
+Once you've executed the `bootstrap.sh` script, you can delete it. This script gives you an executable (`shell`) launching a singularity shell in a Coffea environment. You can try running the analysis from this shell with, e.g., 
+
+```python run_distributed_analysis.py --use-MC -y 2018```
+
+Alternatively, a simple example of the analysis is shown in notebooks/test_analysis_processor.ipynb. To run this Jupyter notebook, you need to forward a local port (e.g. `8888`) when ssh'ing into the cluster:
+
+```ssh -L localhost:8888:localhost:8888 <username>@cmslpc-sl7.fnal.gov```
+
+Then start the Jupyter notebook with: 
+
+```jupyter notebook --no-browser --port=8888 --ip 127.0.0.1```
+
 ## Organization
 - **Selections**: The analysis selections are stored as functions in `preselections.py` and `tight.py`. In general, these functions return masks that whittle down the number of objects in an event or the number of events in consideration. 
 - **Processors**: Currently, all analysis selections are applied in the `preselector.py` processor. This processor loops over each final state category and adds relevant quantities to histograms. For example, loose lepton selections stored in `preselections.py` generate loose_electrons, loose_muons, and loose_taus used to build each four-lepton final state. The processor also contains a Numba implementation of the **FastMtt** ditau mass correction algorithm, whose original implementation may be found here: `https://github.com/SVfit/ClassicSVfit/tree/fastMTT_19_02_2019`. 

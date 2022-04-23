@@ -38,7 +38,7 @@ def get_pileup_tables(names, year, shift=None, UL=False, pileup_dir=''):
     legacy_str = 'UL' if UL else 'Legacy'
     pileup_mc_indir = join(pileup_dir, f'{legacy_str}_{year}')
     pileup_mc_file = os.path.join(pileup_mc_indir, 
-                                  f'MC_{year}_PU.coffea')
+                                  f'MC_{legacy_str}_{year}_PU.coffea')
     pileup_mcs = util.load(pileup_mc_file)['pileup_mc'].values()
     weight_dict = {}
     for name in names:

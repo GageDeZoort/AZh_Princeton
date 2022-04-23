@@ -2,7 +2,7 @@ import numpy as np
 import awkward as ak
 from coffea.nanoevents.methods.vector import PtEtaPhiMLorentzVector
 
-def filter_MET(events, selections, cutflow, year, UL=True, is_data=False):
+def filter_MET(events, selections, cutflow, year, UL=True, data=False):
     flags = events.Flag
     if ((year=='2017') or (year=='2018')) and UL:
         MET_filter = (flags.goodVertices & 
@@ -14,7 +14,7 @@ def filter_MET(events, selections, cutflow, year, UL=True, is_data=False):
                       flags.BadPFMuonDzFilter & 
                       flags.eeBadScFilter &
                       flags.ecalBadCalibFilter)
-    if (year=='2016') and UL: 
+    if ('2016' in year) and UL: 
         MET_filter = (flags.goodVertices & 
                       flags.globalSuperTightHalo2016Filter & 
                       flags.HBHENoiseFilter & 
@@ -31,7 +31,7 @@ def filter_MET(events, selections, cutflow, year, UL=True, is_data=False):
                       flags.EcalDeadCellTriggerPrimitiveFilter & 
                       flags.BadPFMuonFilter & 
                       flags.ecalBadCalibFilterV2)
-    if (year=='2016') and not UL:
+    if ('2016' in year) and not UL:
         MET_filter = (flags.goodVertices &
                       flags.globalSuperTightHalo2016Filter & 
                       flags.HBHENoiseFilter & 
@@ -118,12 +118,8 @@ def get_baseline_taus(taus, cutflow, is_UL=False):
     baseline_t = baseline_t[(np.abs(baseline_t.dz) < 0.2)]
     cutflow.fill_object(baseline_t, '|dz|<0.2', obj)
     
-    if (is_UL):
-        baseline_t = baseline_t[(baseline_t.idDecayModeOldDMs == 1)] 
-        cutflow.fill_object(baseline_t, 'idDecayModeOldDMs==1', obj)
-    else:
-        baseline_t = baseline_t[(baseline_t.idDecayModeNewDMs == 1)]
-        cutflow.fill_object(baseline_t, 'idDecayModeNewDMs==1', obj)
+    baseline_t = baseline_t[(baseline_t.idDecayModeOldDMs == 1)] 
+    cutflow.fill_object(baseline_t, 'idDecayModeOldDMs==1', obj)
 
     baseline_t = baseline_t[((baseline_t.decayMode != 5) & 
                        (baseline_t.decayMode != 6))]
@@ -147,8 +143,9 @@ def get_baseline_jets(jet, cutflow, year='2018'):
     baseline_j = jet[(jet.pt > 20)]
     cutflow.fill_object(baseline_j, 'pt>20', obj)
     
-    eta_per_year = {'2018': 2.5, '2017': 2.5, '2016': 2.4}
-    baseline_j = baseline_j[(np.abs(baseline_j.eta) < eta[year])]
+    eta_per_year = {'2018': 2.5, '2017': 2.5, 
+                    '2016postVFP': 2.4, '2016preVFP': 2.4}
+    baseline_j = baseline_j[(np.abs(baseline_j.eta) < eta_per_year[year])]
     cutflow.fill_object(baseline_j, '|eta|<2.4(2.5)', obj)
 
     baseline_j = baseline_j[(baseline_j.jetId > 0)]
@@ -157,7 +154,8 @@ def get_baseline_jets(jet, cutflow, year='2018'):
 
 def get_baseline_bjets(baseline_j, cutflow, year='2018'):
     obj = 'baseline bjets'
-    delta = {'2016': 0.3093, '2017': 0.3033, '2018': 0.2770}
+    delta = {'2016preVFP': 0.3093, '2016postVFP': 0.3093,
+             '2017': 0.3033, '2018': 0.2770}
     baseline_b = baseline_j[(baseline_j.btagDeepFlavB > delta[year])]
     cutflow.fill_object(baseline_b, f'btagDeepB > {delta[year]}', obj)
     return baseline_b
@@ -278,10 +276,12 @@ def check_trigger_path(HLT, year, cat, cutflow, sync=False):
     #cutflow.fill_cutflow(np.sum(mask>0), 'trigger_path')
     single_lep_trigs = {'ee': {'2018': ['Ele35_WPTight_Gsf'],
                                '2017': ['Ele35_WPTight_Gsf'],
-                               '2016': ['HLT_Ele25_eta2p1_WPTight_Gsf_v']},
+                               '2016preVFP': ['HLT_Ele25_eta2p1_WPTight_Gsf_v'],
+                               '2016postVFP': ['HLT_Ele25_eta2p1_WPTight_Gsf_v']},
                         'mm': {'2018': ['IsoMu27'],
                                '2017': ['IsoMu27'],
-                               '2016': ['HLT_IsoMu24', 'HLT_IsoTkMu24']}}
+                               '2016preVFP': ['HLT_IsoMu24', 'HLT_IsoTkMu24'],
+                               '2016postVFP': ['HLT_IsoMu24', 'HLT_IsoTkMu24']}}
     trig_list = single_lep_trigs[cat[:2]][year]
     triggered = HLT[trig_list[0]]
     if len(trig_list) > 1:
@@ -382,3 +382,46 @@ def build_ditau_cand(lltt, cat, cutflow):
     
     #cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(lltt, axis=1))), 'ditau_cand')
     return lltt[~ak.is_none(lltt, axis=1)]
+
+def dR_llttj(llttj, cutflow):
+    dR_select = 0.5
+    t1 = llttj['lltt']['tt']['t1']
+    t2 = llttj['lltt']['tt']['t2']
+    dR_t1_j = (t1.delta_r(llttj['j']) < dR_select)
+    dR_t2_j = (t2.delta_r(llttj['j']) < dR_select)
+    overlaps = ak.sum((dR_t1_j | dR_t2_j), axis=1)
+    dR_mask = (overlaps==0)
+    cutflow.fill_cutflow(np.sum(dR_mask>0), 'dR')
+    return dR_mask
+
+def higgsLT(lltt, cat, cutflow):
+    hLT_thld = {'et': 30, 'mt': 40, 'em': 20, 'tt': 80}
+    hLT = lltt['tt']['t1'].pt + lltt['tt']['t2'].pt
+    hLT_mask = ak.flatten(hLT > hLT_thld[cat[2:]])
+    cutflow.fill_cutflow(ak.sum(hLT_mask>0), 'higgs_LT')
+    return hLT_mask
+
+def iso_ID(lltt, cat, cutflow):
+    t1 = lltt['tt']['t1']
+    t2 = lltt['tt']['t2']
+    if (cat[2:]=='et'):
+        ID = ((t1.mvaFall17V2noIso_WP80) &
+              (t2.idDeepTau2017v2p1VSe > 60))
+        iso = (t1.pfRelIso03_all < 0.15)
+        iso_ID_mask = ak.flatten(iso & ID)
+    if (cat[2:]=='mt'):
+        ID = (t2.idDeepTau2017v2p1VSe > 60)
+        iso = (t1.pfRelIso04_all < 0.15)
+        iso_ID_mask = ak.flatten(iso & ID)
+    if (cat[2:]=='em'):
+        iso = ((t1.pfRelIso03_all < 0.15) &
+               (t2.pfRelIso04_all < 0.15))
+        ID = (t1.mvaFall17V2noIso_WP80)
+        iso_ID_mask = ak.flatten(iso & ID)
+    if (cat[2:]=='tt'):
+        iso_ID_mask = ak.Array(np.ones(len(lltt), dtype=bool))
+
+    cutflow.fill_cutflow(ak.sum(iso_ID_mask>0), 'iso_ID')
+    return iso_ID_mask
+
+

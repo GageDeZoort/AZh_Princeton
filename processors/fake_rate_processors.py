@@ -19,6 +19,7 @@ from preselections import *
 from SS_4l_selections import *
 from cutflow import Cutflow
 from pileup_utils import get_pileup_weights
+from weights import *
 
 class SS4lFakeRateProcessor(processor.ProcessorABC):
     def __init__(self, sample_info=[],
@@ -127,19 +128,37 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         # organize dataset, year, luminosity
         dataset = events.metadata['dataset']
         year = dataset.split('_')[-1]
-        is_UL = True if 'RunIISummer20UL18' in filename else False
-        eras = {'2016': 'Summer16', '2017': 'Fall17', '2018': 'Autumn18'}
-        lumi = {'2016': 35.9*1000, '2017': 41.5*1000, '2018': 59.7*1000}
+        is_UL = True if 'UL' in filename else False
+        eras = {'2016preVFP': 'Summer16', '2016postVFP': 'Summer16',
+                '2017': 'Fall17', '2018': 'Autumn18'}
+        lumi = {'2016preVFP': 35.9*1000, '2016postVFP': 35.9*1000,
+                '2017': 41.5*1000, '2018': 59.7*1000}
 
         # get sample properties
-        properties = self.info[self.info['name']==dataset.replace(f'_{year}', '')]
-        print(dataset, properties)
+        name = dataset.replace(f'_{year}', '')
+        properties = self.info[self.info['name']==name]
         group = properties['group'][0]
         is_data = 'data' in group
         nevts, xsec = properties['nevts'][0], properties['xsec'][0]
-        #sample_weight = lumi[year] * xsec / nevts 
         sample_weight = lumi[year] * xsec / nevts
         if is_data: sample_weight=1
+
+        # global weights: sample weight, gen weight, pileup weight
+        weights = analysis_tools.Weights(len(events))
+        ones = np.ones(len(events))
+        if (group=='dyjets'):
+            dyjets_weights = stitch_dyjets(self.info, name, events)
+            weights.add(f'dyjets',
+                        np.array(dyjets_weights, dtype=float))
+        else:
+            weights.add('sample_weight', ones*sample_weight)
+
+        if (self.pileup_tables is not None) and not is_data:
+            weights.add('gen_weight', events.genWeight)
+            pu_weights = get_pileup_weights(events.Pileup.nTrueInt,
+                                            self.pileup_tables[dataset],
+                                            self.pileup_bins)
+            weights.add('pileup_weight', pu_weights)
 
         # build lepton/jet collections
         electrons = events.Electron
@@ -155,18 +174,6 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         baseline_j = get_baseline_jets(jets, self.cutflow)
         baseline_b = get_baseline_bjets(baseline_j, self.cutflow)
         
-        # global weights
-        weights = analysis_tools.Weights(len(events))
-        weights.add('sample_weight',
-                    np.ones(len(events))*sample_weight)
-        
-        if (self.pileup_tables is not None) and not is_data:
-            weights.add('gen_weight', events.genWeight)
-            pu_weights = get_pileup_weights(events.Pileup.nTrueInt,
-                                            self.pileup_tables[dataset],
-                                            self.pileup_bins)
-            weights.add('pileup_weight', pu_weights)
-
         # loop over each category
         #for mode, categories in self.cats_per_mode.items():
         mode = self.mode
@@ -178,7 +185,9 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                 mask = mask & lepton_count_veto(ak.num(baseline_e), 
                                                 ak.num(baseline_m), 
                                                 cat, self.cutflow)
-                mask = mask & bjet_veto(baseline_b, self.cutflow)
+                                        
+                # do not apply the b jet veto
+                #mask = mask & bjet_veto(baseline_b, self.cutflow)
                 
                 # pair loose light leptons, build Z candidate
                 l = baseline_e if (cat[0]=='e') else baseline_m
@@ -270,7 +279,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                         pt_bin = f"${pt_range[0]}<p_T<{pt_range[1]}$ GeV"
                         eta_barrel_bin = f"$|\eta|<1.479$"
                         eta_endcap_bin = f"$|\eta|>1.479$"
-                        tau = data['tt']['t1']
+                        tau = data['tt']['t2'] if self.mode=='tt' else data['tt']['t1'] 
                         mT = np.sqrt(tau.energy**2 - tau.pt**2)
                         pt_mask = ((tau.pt > pt_range[0]) & (tau.pt < pt_range[1]))            
                         barrel_mask = ak.flatten((abs(tau.eta) < 1.479) & pt_mask)

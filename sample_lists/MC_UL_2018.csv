@@ -45,7 +45,7 @@
 #
 # ttbar (all UL)
 ttbar,TTToSemiLeptonic,/cmsxrootd-site2.fnal.gov:1093/,/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM,476408000,365.35
-ttbar,TTToHadronic,/cmsxrootd-site3.fnal.gov:1093/,/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIIAutumn18NanoAODv7-Nano02Apr2020_102X_upgrade2018_realistic_v21-v1/NANOAODSIM,128640000,377.96
+ttbar,TTToHadronic,/cmsxrootd-site3.fnal.gov:1093/,/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM,334206000,377.96
 ttbar,TTTo2L2Nu,/cmsxrootd-site3.fnal.gov:1093/,/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM,145020000,88.29
 #
 # ttZJets (all UL)

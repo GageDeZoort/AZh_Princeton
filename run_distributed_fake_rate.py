@@ -23,16 +23,15 @@ def parse_args():
     add_arg('-i', '--infile', default='')
     add_arg('-m', '--mode', default=-1)
     add_arg('-y', '--year', default=2018)
-    add_arg('-s', '--source', default='MC')
+    add_arg('-s', '--source', default='MC_UL')
     add_arg('-o', '--outdir', default="output")
     add_arg('-v', '--verbose', action='store_true')
     add_arg('--use-data', action='store_true')
-    add_arg('--use-UL', action='store_true')
     add_arg('--sample-info', default='')
     add_arg('--show-config', action='store_true')
     add_arg('--interactive', action='store_true')
-    add_arg('--min-workers', default=120)
-    add_arg('--max-workers', default=300)
+    add_arg('--min-workers', default=100)
+    add_arg('--max-workers', default=200)
     add_arg('--pileup-tables', default='')
     return parser.parse_args()
 
@@ -48,7 +47,8 @@ logging.info('Initializing')
 # relevant parameters
 year = args.year
 use_data = args.use_data
-use_UL = args.use_UL or ('UL' in args.source)
+use_UL = 'UL' in args.source
+print('use_UL', use_UL)
 indir = "sample_lists/sample_yamls"
 
 # load sample info and filesets
@@ -64,7 +64,6 @@ else:
     MC_fileset = get_fileset(join(indir, MC_string+'.yaml'))
     pileup_tables = get_pileup_tables(MC_fileset.keys(), year,
                                       UL=use_UL, pileup_dir='pileup')
-    print('using,', pileup_tables)
     fileset.update(MC_fileset)
     sample_info = load_sample_info(join('sample_lists', MC_string+'.csv'))
 
@@ -78,19 +77,14 @@ else:
                                 load_sample_info(join('sample_lists',
                                                       data_string+'.csv')))
 fileset = {k: v for k, v in fileset.items()
-           if (('ggA' not in k) and
-               ('ZZto4e' not in k) and
-               ('ZZto4mu' not in k) and
-               ('ZZto4tau' not in k) and
-               ('ZZto2e2mu' not in k) and
-               ('ZZto2e2tau' not in k) and
-               ('ZZto2mu2tau' not in k))}
+           if ('ggA' not in k)}
 
 # start timer, initiate cluster, ship over files
 tic = time.time()
 infiles = ['processors/fake_rate_processors.py', 
            'selections/preselections.py',
            'selections/SS_4l_selections.py',
+           'selections/weights.py',
            'utils/cutflow.py', 'utils/print_events.py',
            'pileup/pileup_utils.py',
            f'sample_lists/MC_{year}.csv',

@@ -53,8 +53,8 @@ def get_loose_taus(taus, cutflow):
     loose_t = loose_t[(np.abs(loose_t.dz) < 0.2)]
     cutflow.fill_object(loose_t, '|dz|<0.2', obj)
     
-    loose_t = loose_t[(loose_t.idDecayModeNewDMs == 1)]
-    cutflow.fill_object(loose_t, 'idDecayModeNewDMs==1', obj)
+    loose_t = loose_t[(loose_t.idDecayModeOldDMs == 1)]
+    cutflow.fill_object(loose_t, 'idDecayModeOldDMs==1', obj)
     
     loose_t = loose_t[((loose_t.decayMode != 5) & 
                        (loose_t.decayMode != 6))]
@@ -143,7 +143,6 @@ def gen_match_lepton(lltt, jet_faking_x, cat, weights):
         prompt_mask = ((t2.genPartFlav>0) &
                        (t2.genPartFlav<6))
     prompt_mask = (ak.sum(prompt_mask, axis=1)>0)
-    print(prompt_mask)
     fake = {'data': lltt[~prompt_mask],
             'weights': weights[~prompt_mask]}
     prompt = {'data': lltt[prompt_mask],

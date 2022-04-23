@@ -25,8 +25,8 @@ def parse_args():
     add_arg('-v', '--verbose', action='store_true')
     add_arg('--show-config', action='store_true')
     add_arg('--interactive', action='store_true')
-    add_arg('--min-workers', default=40)
-    add_arg('--max-workers', default=80)
+    add_arg('--min-workers', default=80)
+    add_arg('--max-workers', default=160)
     return parser.parse_args()
 
 # parse the command line

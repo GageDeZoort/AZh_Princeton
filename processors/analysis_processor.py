@@ -18,7 +18,6 @@ sys.path.append('../')
 sys.path.append('../selections')
 sys.path.append('../utils')
 from preselections import *
-from tight_selections import *
 from cutflow import Cutflow
 from print_events import EventPrinter
 from weights import *
@@ -44,10 +43,11 @@ class AnalysisProcessor(processor.ProcessorABC):
                                5: 'mmet', 6: 'mmmt', 7: 'mmtt', 8: 'mmem'}
         else: 
             self.categories = {i:cat for i, cat in enumerate(categories)}
-        self.printer = EventPrinter(exc1_path=exc1_path, 
-                                    exc2_path=exc2_path)
-        self.eras = {'2016': 'Summer16', '2017': 'Fall17', '2018': 'Autumn18'}
-        self.lumi = {'2016': 35.9, '2017': 41.5, '2018': 59.7}
+
+        self.eras = {'2016preVFP': 'Summer16', '2016postVFP': 'Summer16',
+                     '2017': 'Fall17', '2018': 'Autumn18'}
+        self.lumi = {'2016preVFP': 35.9*1000, '2016postVFP': 35.9*1000,
+                     '2017': 41.5*1000, '2018': 59.7*1000}
         self.pileup_tables = pileup_tables
         self.pileup_bins = np.arange(0, 100)
 
@@ -56,83 +56,60 @@ class AnalysisProcessor(processor.ProcessorABC):
         category_axis = hist.Cat("category", "")
         group_axis = hist.Cat("group", "")
         leg_axis = hist.Cat("leg", "")
+        bjet_axis = hist.Cat("bjets", "")
         tight_axis = hist.Cat("tight", "")
-                                                               
+        mass_type_axis = hist.Cat("mass_type", "")
+                                       
         # bin variables themselves 
-        pt_hist = hist.Hist("Counts", group_axis, dataset_axis, 
-                            category_axis, leg_axis, tight_axis,
-                            hist.Bin("pt", "$p_T$ [GeV]", 60, 0, 300))
-        eta_hist = hist.Hist("Counts", group_axis, dataset_axis,
-                             category_axis, leg_axis, tight_axis,
-                             hist.Bin("eta", "$\eta$", 40, -5, 5))
-        phi_hist = hist.Hist("Counts", group_axis, dataset_axis,
-                             category_axis, leg_axis, tight_axis,
-                             hist.Bin("phi", "$\phi$", 40, -np.pi, np.pi))
-        mass_hist = hist.Hist("Counts", group_axis, dataset_axis, 
-                              category_axis, leg_axis, tight_axis,
-                              hist.Bin("mass", "$m$", 40, 0, 20))
-        mll_hist = hist.Hist("Counts", group_axis, tight_axis,
-                             dataset_axis, category_axis, 
-                             hist.Bin("mll", "$m_{ll}$", 30, 60, 120))
-        mtt_hist = hist.Hist("Counts", group_axis,
-                             dataset_axis, category_axis,
-                             hist.Bin("mtt", "$m_{tt}$", 40, 0, 200)) 
-        mtt_corr_hist =  hist.Hist("Counts", group_axis, 
-                                   dataset_axis, category_axis, 
-                                   hist.Bin("mtt_corr", "$m_{tt}^{corr}$", 
-                                            40, 0, 200))
-        mtt_cons_hist =  hist.Hist("Counts", group_axis, 
-                                   dataset_axis, category_axis,
-                                   hist.Bin("mtt_cons", "$m_{tt}^{cons}$", 
-                                            40, 0, 200))
-        m4l_hist = hist.Hist("Counts", group_axis, 
-                             dataset_axis, category_axis,  
-                             hist.Bin("m4l", "$m_{4l}$", 80, 0, 400))
-        m4l_corr_hist = hist.Hist("Counts", group_axis, 
-                                  dataset_axis, category_axis,
-                                  hist.Bin("m4l_corr", "$m_{4l}^{corr}$", 
-                                           80, 0, 400))
-        m4l_cons_hist =  hist.Hist("Counts", group_axis,
-                                   dataset_axis, category_axis, 
-                                   hist.Bin("m4l_cons", "$m_{4l}^{cons}$", 
-                                            80, 0, 400))
-        
+        pt = hist.Hist("Counts", group_axis, dataset_axis, 
+                       category_axis, leg_axis, tight_axis, bjet_axis,
+                       hist.Bin("pt", "$p_T$ [GeV]", 60, 0, 300))
+        eta = hist.Hist("Counts", group_axis, dataset_axis,
+                        category_axis, leg_axis, tight_axis, bjet_axis,
+                        hist.Bin("eta", "$\eta$", 40, -5, 5))
+        phi = hist.Hist("Counts", group_axis, dataset_axis,
+                        category_axis, leg_axis, tight_axis, bjet_axis,
+                        hist.Bin("phi", "$\phi$", 40, -np.pi, np.pi))
+        mass = hist.Hist("Counts", group_axis, dataset_axis, 
+                         category_axis, leg_axis, tight_axis, bjet_axis,
+                         hist.Bin("mass", "$m [GeV]$", 40, 0, 20))
+        mll = hist.Hist("Counts", group_axis, dataset_axis, 
+                        category_axis, tight_axis, bjet_axis,
+                        hist.Bin("mll", "$m_{ll} [GeV]$", 30, 60, 120))
+        mtt = hist.Hist("Counts", group_axis, dataset_axis, mass_type_axis,
+                        category_axis, tight_axis, bjet_axis, 
+                        hist.Bin("mass", "$m_{tt} [GeV]$", 40, 0, 200)) 
+        #mtt_corr =  hist.Hist("Counts", group_axis, dataset_axis, 
+        #                      category_axis, tight_axis, bjet_axis, mass_bins)
+        #                      #hist.Bin("mtt_corr", "$m_{tt}^{corr}$", 40, 0, 200))
+        #mtt_cons =  hist.Hist("Counts", group_axis, dataset_axis, mass_type_axis,
+        #                      category_axis, tight_axis, bjet_axis,
+        #                      hist.Bin("mtt_cons", "$m_{tt}$", 40, 0, 200))
+        m4l = hist.Hist("Counts", group_axis, dataset_axis, mass_type_axis,
+                        category_axis, tight_axis, bjet_axis, 
+                        hist.Bin("mass", "$m_{4l}$ [GeV]", 50, 0, 2500))
+        #m4l_corr = hist.Hist("Counts", group_axis, dataset_axis, 
+        #                     category_axis, tight_axis, bjet_axis, mass_bins)
+        #                     #hist.Bin("m4l_corr", "$m_{4l}^{corr}$", 80, 0, 400))
+        #m4l_cons =  hist.Hist("Counts", group_axis, dataset_axis, 
+        #                      category_axis, tight_axis, bjet_axis, mass_bins)
+        #                      #hist.Bin("m4l_cons", "$m_{4l}^{cons}$", 80, 0, 400))
+        # variables harvested from a specific tree, e.g. events.Tau['pt']
         collection_dict = {f"{c}_{v}": col_acc(np.array([]))
                            for (c, v) in self.collection_vars}
+        # global variables, e.g. events.run
         global_dict = {var: col_acc(np.array([]))
                        for var in global_vars}
 
         self._accumulator = processor.dict_accumulator(
             {**collection_dict, **global_dict,
-             'gen_counts': dict_acc({'eeem': col_acc(np.empty((1,3))),
-                                     'eeet': col_acc(np.empty((1,3))),
-                                     'eemt': col_acc(np.empty((1,3))),
-                                     'eett': col_acc(np.empty((1,3))),
-                                     'mmem': col_acc(np.empty((1,3))),
-                                     'mmet': col_acc(np.empty((1,3))),
-                                     'mmmt': col_acc(np.empty((1,3))),
-                                     'mmtt': col_acc(np.empty((1,3))),
-                                     'mass': col_acc(np.empty((1,3))),
-                                 }),
-             'obs_counts': dict_acc({'eeem': col_acc(np.empty((1,3))),
-                                     'eeet': col_acc(np.empty((1,3))),
-                                     'eemt': col_acc(np.empty((1,3))),
-                                     'eett': col_acc(np.empty((1,3))),
-                                     'mmem': col_acc(np.empty((1,3))),
-                                     'mmet': col_acc(np.empty((1,3))),
-                                     'mmmt': col_acc(np.empty((1,3))),
-                                     'mmtt': col_acc(np.empty((1,3))),
-                                     'mass': col_acc(np.empty((1,3))),
-                                 }),
              'tight': col_acc(np.array([])),
              'evt': col_acc(np.array([])), 
              'lumi': col_acc(np.array([])),
              'run': col_acc(np.array([])), 
-             'pt': pt_hist, 'eta': eta_hist, 'phi': phi_hist, 
-             'mass': mass_hist, 'mll': mll_hist, 'mtt': mtt_hist,
-             'mtt_corr': mtt_corr_hist, 'mtt_cons': mtt_cons_hist,
-             'm4l': m4l_hist, 'm4l_corr': m4l_corr_hist,
-             'm4l_cons': m4l_cons_hist}
+             'pt': pt, 'eta': eta, 'phi': phi, 
+             'mass': mass, 'mll': mll, 
+             'mtt': mtt, 'm4l': m4l}
         )
 
     @property 
@@ -153,33 +130,51 @@ class AnalysisProcessor(processor.ProcessorABC):
 
     def process(self, events):
         self.output = self.accumulator.identity()
+        
+        print('...processing', events.metadata['dataset'])
         filename = events.metadata['filename']
-
+        
         # organize dataset, year, luminosity
         dataset = events.metadata['dataset']
         year = dataset.split('_')[-1]
-        is_UL = True if 'UL' in filename else False
-        name = dataset.replace('_'+year, '')
-        print(name)
+        name = dataset.replace(f'_{year}', '')
         properties = self.info[self.info['name']==name]
+        sample = properties['dataset'][0]
         group = properties['group'][0]
         is_data = 'data' in group
+        is_UL = 'UL' in sample
         nevts, xsec = properties['nevts'][0], properties['xsec'][0]
         sample_weight = self.lumi[year] * xsec / nevts
+        if is_data: sample_weight=1
             
-        # get sample mass
+        # if signal, get sample mass
         mass = 0
         if (group=='signal'):
-            mass = int(name.split('_M')[-1].split('_')[0])
-            
-        # initialize global selections
-        global_selections = analysis_tools.PackedSelection()    
+            mass = int(name.split('TauM')[-1])
         
-        # apply initial event filters
-        filter_MET(events, global_selections, self.cutflow)
+        # apply global event selections
+        global_selections = analysis_tools.PackedSelection()
+        filter_MET(events, global_selections, self.cutflow, year,
+                   UL=is_UL, data=is_data)
         filter_PV(events, global_selections, self.cutflow)
         global_mask = global_selections.all(*global_selections.names)
         events = events[global_mask]
+
+        # global weights: sample weight, gen weight, pileuODp weight
+        weights = analysis_tools.Weights(len(events))
+        ones = np.ones(len(events))
+        if (group=='dyjets'):
+            dyjets_weights = stitch_dyjets(self.info, name, events)
+            weights.add(f'dyjets_sample_weights',
+                        np.array(dyjets_weights, dtype=float))
+        else:
+            weights.add('sample_weight', ones*sample_weight)
+        if (self.pileup_tables is not None) and not is_data:
+            weights.add('gen_weight', events.genWeight)
+            pu_weights = get_pileup_weights(events.Pileup.nTrueInt,
+                                            self.pileup_tables[dataset],
+                                            self.pileup_bins)
+            weights.add('pileup_weight', pu_weights)
 
         # grab baselinely defined leptons 
         baseline_e = get_baseline_electrons(events.Electron, self.cutflow)
@@ -191,41 +186,33 @@ class AnalysisProcessor(processor.ProcessorABC):
         # count the number of leptons per event
         e_counts = ak.num(baseline_e)
         m_counts = ak.num(baseline_m)
+        b_counts = ak.num(baseline_b)
         
         # store auxillary objects
         HLT_all, trig_obj_all = events.HLT, events.TrigObj
         events_all = events
         
-        # get the gen-level counts of each category
-        if group=='signal':
-            cat_counts = tag_categories(events.Electron, events.Muon,
-                                        events.Tau, events.GenVisTau)
-            for cat, count in cat_counts.items():
-                self.output['gen_counts'][cat] += col_acc(np.array([[mass, count, nevts]]))
-    
-        # global weights
-        weights = analysis_tools.Weights(len(events))
-        weights.add('sample_weight', 
-                    np.ones(len(events))*sample_weight)
-        weights.add('gen_weight',
-                    events.genWeight)
-        if (self.pileup_tables is not None) and not is_data:
-            pu_weights = get_pileup_weights(events.Pileup.nTrueInt, 
-                                            self.pileup_tables[dataset],
-                                            self.pileup_bins)
-            weights.add('pileup_weight', pu_weights)
-                        
-                
         # selections per category 
         for num, cat in self.categories.items():
+            
+            # event-level masks 
+            mask = check_trigger_path(events.HLT, year, cat, self.cutflow)
+            mask = mask & lepton_count_veto(e_counts, m_counts, 
+                                            cat, self.cutflow)
+            #mask = mask & bjet_veto(baseline_b, self.cutflow)
 
-            # get an initial estimate for the number of lltt states
+            # build Zll candidate, check trigger filter
             if (cat[:2]=='ee'):
                 ll = ak.combinations(baseline_e, 2, axis=1,
                                      fields=['l1', 'l2'])
             elif (cat[:2]=='mm'):
                 ll = ak.combinations(baseline_m, 2, axis=1,
                                      fields=['l1', 'l2'])
+            ll = dR_ll(ll, self.cutflow)
+            ll = build_Z_cand(ll, self.cutflow)
+            mask = mask & trigger_filter(ll, events.TrigObj,
+                                         cat, self.cutflow)
+            # build di-tau candidate
             if cat[2:]=='mt':
                 tt = ak.cartesian({'t1': baseline_m, 't2': baseline_t}, axis=1)
             elif cat[2:]=='et':
@@ -234,59 +221,23 @@ class AnalysisProcessor(processor.ProcessorABC):
                 tt = ak.cartesian({'t1': baseline_e, 't2': baseline_m}, axis=1)
             elif cat[2:]=='tt':
                 tt = ak.combinations(baseline_t, 2, axis=1, fields=['t1', 't2'])
-            # lltt = clean_duplicates(lltt, self.cutflow, thld=0.2)
             
-            # per-category preselections, weights
-            preselections = analysis_tools.PackedSelection()
-
-            # filter events based on lepton counts and trigger path
-            trig_obj, HLT = trig_obj_all, HLT_all 
-            preselections.add('trigger_path', 
-                              check_trigger_path(HLT, year, 
-                                                 cat, self.cutflow))
-            preselections.add('nlepton_veto', 
-                              lepton_count_veto(e_counts, m_counts, 
-                                                cat, self.cutflow)) 
-            preselections.add('bjet_veto',
-                              bjet_veto(baseline_b, self.cutflow))
-           
-            # build Z candidate, check trigger filter
-            ll = dR_ll(ll, self.cutflow)
-            ll = build_Z_cand(ll, self.cutflow)
-            preselections.add('trigger_filter', 
-                              trigger_filter(ll, trig_obj, cat, 
-                                             self.cutflow))
-                
-            # build 4l final state, mask nleptons + trigger path
+            # build 4l final state
             lltt = ak.cartesian({'ll': ll, 'tt': tt}, axis=1)
-            mask = preselections.all(*preselections.names)
-            lltt = lltt[mask]
-            if ak.sum(ak.num(lltt, axis=1))==0: continue
-
-            # apply dR criteria, build ditau candidate
             lltt = dR_lltt(lltt, cat, self.cutflow)
             lltt = build_ditau_cand(lltt, cat, self.cutflow)
+            mask = mask & (ak.num(lltt, axis=1) > 0)
 
-            # identify good 4l final states
-            good_events = (ak.num(lltt, axis=1)==1)
-            events = events_all[good_events]
-            lltt = lltt[good_events]
-            w = weights.weight()[mask][good_events]
+            # whittle down events
+            lltt = lltt[mask]
+            met = events.MET[mask]
+            n_bjets = b_counts[mask]
+            w = weights.weight()[mask]
 
             # tighter selections
-            selections = analysis_tools.PackedSelection()
-            llttj = ak.cartesian({'lltt': lltt,
-                                  'j': baseline_j[good_events]}, axis=1)
-            selections.add('dR_llttj',
-                           dR_llttj(llttj, self.cutflow))
-            selections.add('higgsLT',
-                           higgsLT(lltt, cat, self.cutflow))
-            selections.add('iso_ID',
-                           iso_ID(lltt, cat, self.cutflow))
-            tight_mask = selections.all(*selections.names)
-            w_tight = w[tight_mask]
-            lltt_tight = lltt[tight_mask]
-            events_tight = events[tight_mask]
+            mask = higgsLT(lltt, cat, self.cutflow)
+            mask = mask & iso_ID(lltt, cat, self.cutflow)
+            lltt, met, n_bjets, w = lltt[mask], met[mask], n_bjets[mask], w[mask]
 
             # fill aux variables
             if len(self.collection_vars)>0:
@@ -296,13 +247,9 @@ class AnalysisProcessor(processor.ProcessorABC):
             if len(self.global_vars)>0:
                 for v in self.global_vars:
                     values = events[v].to_numpy()
-                    self.output[v] += col_acc(valuxces)
+                    self.output[v] += col_acc(values)
                     
-            # fill observed event counts
-            #self.output['obs_counts'][cat] += col_acc(np.array([[mass, len(lltt_tight), nevts]]))
-
             # run fastmtt
-            met = events.MET
             l1, l2 = ak.flatten(lltt['ll']['l1']), ak.flatten(lltt['ll']['l2'])
             t1, t2 = ak.flatten(lltt['tt']['t1']), ak.flatten(lltt['tt']['t2'])
             masses = fastmtt(ak.to_numpy(l1.pt), ak.to_numpy(l1.eta), 
@@ -320,60 +267,56 @@ class AnalysisProcessor(processor.ProcessorABC):
                              constrain=True)
 
             # output event-level info
-            #self.output["evt"] += self.accumulate(events.event, flatten=False)
-            #self.output["lumi"] += self.accumulate(events.luminosityBlock, flatten=False)
-            #self.output["run"] += self.accumulate(events.run, flatten=False)
+            self.output["evt"] += self.accumulate(events.event, flatten=False)
+            self.output["lumi"] += self.accumulate(events.luminosityBlock, flatten=False)
+            self.output["run"] += self.accumulate(events.run, flatten=False)
             #self.output['tight'] += self.accumulate(tight_mask, flatten=False)
-            #label_dict = {('ll', 'l1'): '1', ('ll', 'l2'): '2',
-            #              ('tt', 't1'): '3', ('tt', 't2'): '4'}
-            #for leg, label in label_dict.items():
-            #    for tight in ['loose', 'tight']:
-            #        data_out = lltt_tight[leg[0]][leg[1]]
-            #        weight = w_tight
-            #        if tight=='loose': 
-            #            data_out = lltt[leg[0]][leg[1]]
-            #            weight = w
-            #        self.output['pt'].fill(group=group, dataset=dataset,
-            #                               tight=tight, category=cat, leg=label, 
-            #                               weight=weight, pt=ak.flatten(data_out.pt))
-            #        self.output['eta'].fill(group=group, dataset=dataset,
-            #                                tight=tight, category=cat, leg=label, 
-            #                                weight=weight, eta=ak.flatten(data_out.eta))
-            #        self.output['phi'].fill(group=group, dataset=dataset,
-            #                                tight=tight, category=cat, leg=label, 
-            #                                weight=weight, phi=ak.flatten(data_out.phi))
-            #        self.output['mass'].fill(group=group, dataset=dataset,
-            #                                 tight=tight, category=cat, leg=label, 
-            #                                 weight=weight, mass=ak.flatten(data_out.mass))
-            #    
-            #mll = ak.flatten((lltt['ll']['l1']+lltt['ll']['l2']).mass)
-            #self.output['mll'].fill(group=group, dataset=dataset,
-            #                        tight='loose', category=cat, 
-            #                        weight=w, mll=mll)
-            #mll = ak.flatten((lltt_tight['ll']['l1']+lltt_tight['ll']['l2']).mass)
-            #self.output['mll'].fill(group=group, dataset=dataset,
-            #                        tight='tight', category=cat,
-            #                        weight=w_tight, mll=mll)
-            #mtt = ak.flatten((lltt['tt']['t1']+lltt['tt']['t2']).mass)
-            #self.output['mtt'].fill(group=group, dataset=dataset,
-            #                        category=cat, weight=w, mtt=mtt)
-            #m4l = ak.flatten((lltt['ll']['l1']+lltt['ll']['l2']+
-            #                  lltt['tt']['t1']+lltt['tt']['t2']).mass)
-            #self.output['m4l'].fill(group=group, dataset=dataset,
-            #                        category=cat, weight=w, m4l=m4l)
+            
 
-            #self.output['mtt_corr'].fill(group=group, dataset=dataset, 
-            #                             category=cat, weight=w, 
-            #                             mtt_corr=masses['mtt_corr'])
-            #self.output['mtt_cons'].fill(group=group, dataset=dataset,
-            #                             category=cat, weight=w, 
-            #                             mtt_cons=masses['mtt_cons'])
-            #self.output['m4l_corr'].fill(group=group, dataset=dataset,
-            #                             category=cat, weight=w, 
-            #                             m4l_corr=masses['m4l_corr'])
-            #self.output['m4l_cons'].fill(group=group, dataset=dataset,
-            #                             category=cat, weight=w, 
-            #                             m4l_cons=masses['m4l_cons'])
+            for j, bjet_label in enumerate(['0 b-jets', '$1+ b-jets']): 
+                bjet_mask = (n_bjets==0) if (j==0) else (n_bjets>0)
+                selected, w_selected = lltt[bjet_mask], w[bjet_mask]
+
+                # fill the four-vectors
+                label_dict = {('ll', 'l1'): '1', ('ll', 'l2'): '2',
+                              ('tt', 't1'): '3', ('tt', 't2'): '4'}
+                for leg, label in label_dict.items():
+                    p4 = selected[leg[0]][leg[1]]
+                    self.output['pt'].fill(group=group, dataset=dataset, tight='tight', 
+                                           category=cat, leg=label, bjets=bjet_label, 
+                                           weight=w_selected, pt=ak.flatten(p4.pt))
+                    self.output['eta'].fill(group=group, dataset=dataset, tight='tight', 
+                                            category=cat, leg=label, bjets=bjet_label, 
+                                            weight=w_selected, eta=ak.flatten(p4.eta))
+                    self.output['phi'].fill(group=group, dataset=dataset, tight='tight', 
+                                            category=cat, leg=label, bjets=bjet_label, 
+                                            weight=w_selected, phi=ak.flatten(p4.phi))
+                    self.output['mass'].fill(group=group, dataset=dataset, tight='tight', 
+                                             category=cat, leg=label, bjets=bjet_label, 
+                                             weight=w_selected, mass=ak.flatten(p4.mass))
+                    
+                mll = ak.flatten((selected['ll']['l1']+selected['ll']['l2']).mass)
+                self.output['mll'].fill(group=group, dataset=dataset, tight='tight',
+                                        category=cat, bjets=bjet_label, 
+                                        weight=w_selected, mll=mll)
+                mtt = ak.flatten((selected['tt']['t1']+selected['tt']['t2']).mass)
+                self.output['mtt'].fill(group=group, dataset=dataset, tight='tight',
+                                        category=cat, bjets=bjet_label,
+                                        mass_type='raw', weight=w_selected, mass=mtt)
+                m4l = ak.flatten((selected['ll']['l1']+selected['ll']['l2']+
+                                  selected['tt']['t1']+selected['tt']['t2']).mass)
+                self.output['m4l'].fill(group=group, dataset=dataset, tight='tight',
+                                        category=cat, bjets=bjet_label,
+                                        mass_type='raw', weight=w_selected, mass=m4l)
+                
+                for mass_label, mass_data in masses.items():
+                    key = mass_label.split('_')[0] # mtt or m4l
+                    mass_type = mass_label.split('_')[1] # corr or cons
+                    self.output[key].fill(group=group, dataset=dataset,
+                                          tight='tight', category=cat,
+                                          mass_type=mass_type,
+                                          bjets=bjet_label, weight=w_selected, 
+                                          mass=mass_data[bjet_mask])
 
         return self.output
 

@@ -105,9 +105,12 @@ Pileup utilities, weights, files, etc. are stored in `pileup/`. Pileup weights a
 Recommended luminosity, golden JSON file information: https://twiki.cern.ch/twiki/bin/view/CMS/TWikiLUM
 - 2016APV: 19.52 fb^-1
 - 2016: 16.81 fb^-1 
+  - `/afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions16/13TeV/Legacy_2016/Cert_271036-284044_13TeV_Legacy2016_Collisions16_JSON.txt`
 - 2017: 41.48 fb^-1
+  - `/afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions17/13TeV/Legacy_2017/Cert_294927-306462_13TeV_UL2017_Collisions17_GoldenJSON.txt`
 - 2018: 59.83 fb^-1
-
+  - `/afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions18/13TeV/Legacy_2018/Cert_314472-325175_13TeV_Legacy2018_Collisions18_JSON.txt`
+ 
 ## Simulation
 ### Samples and Generator Parameters
 Sample csv files containing DAS strings, xrootd redirectors, and cross sections are stored in the ```sample_lists``` directory. All cross sections are listed in picobarns. Several utilities are available to process these sample lists:

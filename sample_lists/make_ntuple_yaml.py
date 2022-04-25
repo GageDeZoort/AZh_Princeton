@@ -21,6 +21,7 @@ args = parser.parse_args()
 
 base_dir = f'/eos/uscms/store/group/lpcsusyhiggs/ntuples/AZh/nAODv9/{args.year}'
 all_samples = os.listdir(base_dir)
+print(all_samples)
 
 # open sample file
 sample_info = f"{args.source}_{args.year}.csv"
@@ -32,11 +33,15 @@ outfile = open(join('sample_yamls', outfile), 'w+')
 for i in range(len(sample_info)):
     name = sample_info['name'][i]
     print('...processing', name)
+    is_ext = '_ext' in name
     samples = [s for s in all_samples
-               if name in s]
-    if len(samples)>1: print('found multiple samples:\n', samples)
+               if name==s]
+    if len(samples)!=1:
+        print(f'only found {samples}')
+        break
     sample_dir = join(base_dir, samples[0])
     files = os.listdir(sample_dir)
+    sample_dir = 'root://cmseos.fnal.gov/' + sample_dir
     files = [join(sample_dir, f) for f in files]
     outfile.write(f'{name}_{args.year}:\n')
     for f in files:

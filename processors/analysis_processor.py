@@ -11,17 +11,18 @@ from coffea.processor import column_accumulator as col_acc
 from coffea.processor import dict_accumulator as dict_acc
 from coffea import analysis_tools
 from coffea.nanoevents.methods import candidate
+from coffea.lumi_tools import LumiMask
 ak.behavior.update(candidate.behavior)
 
 sys.path.append('/srv')
 sys.path.append('../')
 sys.path.append('../selections')
 sys.path.append('../utils')
+sys.path.append('../pileup')
 from preselections import *
 from cutflow import Cutflow
-from print_events import EventPrinter
 from weights import *
-from pileup.pileup_utils import get_pileup_weights
+from pileup_utils import get_pileup_weights
 
 class AnalysisProcessor(processor.ProcessorABC):
     def __init__(self, sync=False, categories='all',
@@ -30,7 +31,8 @@ class AnalysisProcessor(processor.ProcessorABC):
                  sample_dir='../sample_lists/sample_yamls',
                  exc1_path='sync/princeton_all.csv', 
                  exc2_path='sync/desy_all.csv',
-                 pileup_tables=None):
+                 pileup_tables=None, golden_jsons={}, blind=True,
+                 nevts_dict=None):
 
         # initialize member variables
         self.sync = sync
@@ -38,6 +40,7 @@ class AnalysisProcessor(processor.ProcessorABC):
         self.cutflow = Cutflow()
         self.collection_vars=collection_vars
         self.global_vars=global_vars
+        self.blind = blind
         if categories == 'all':
             self.categories = {1: 'eeet', 2: 'eemt', 3: 'eett', 4: 'eeem', 
                                5: 'mmet', 6: 'mmmt', 7: 'mmtt', 8: 'mmem'}
@@ -49,7 +52,9 @@ class AnalysisProcessor(processor.ProcessorABC):
         self.lumi = {'2016preVFP': 35.9*1000, '2016postVFP': 35.9*1000,
                      '2017': 41.5*1000, '2018': 59.7*1000}
         self.pileup_tables = pileup_tables
-        self.pileup_bins = np.arange(0, 100)
+        self.pileup_bins = np.arange(0, 100, 1)
+        self.golden_jsons = golden_jsons
+        self.nevts_dict=nevts_dict
 
         # bin variables by dataset, category, and leg
         dataset_axis = hist.Cat("dataset", "")
@@ -79,21 +84,9 @@ class AnalysisProcessor(processor.ProcessorABC):
         mtt = hist.Hist("Counts", group_axis, dataset_axis, mass_type_axis,
                         category_axis, tight_axis, bjet_axis, 
                         hist.Bin("mass", "$m_{tt} [GeV]$", 40, 0, 200)) 
-        #mtt_corr =  hist.Hist("Counts", group_axis, dataset_axis, 
-        #                      category_axis, tight_axis, bjet_axis, mass_bins)
-        #                      #hist.Bin("mtt_corr", "$m_{tt}^{corr}$", 40, 0, 200))
-        #mtt_cons =  hist.Hist("Counts", group_axis, dataset_axis, mass_type_axis,
-        #                      category_axis, tight_axis, bjet_axis,
-        #                      hist.Bin("mtt_cons", "$m_{tt}$", 40, 0, 200))
         m4l = hist.Hist("Counts", group_axis, dataset_axis, mass_type_axis,
                         category_axis, tight_axis, bjet_axis, 
                         hist.Bin("mass", "$m_{4l}$ [GeV]", 50, 0, 2500))
-        #m4l_corr = hist.Hist("Counts", group_axis, dataset_axis, 
-        #                     category_axis, tight_axis, bjet_axis, mass_bins)
-        #                     #hist.Bin("m4l_corr", "$m_{4l}^{corr}$", 80, 0, 400))
-        #m4l_cons =  hist.Hist("Counts", group_axis, dataset_axis, 
-        #                      category_axis, tight_axis, bjet_axis, mass_bins)
-        #                      #hist.Bin("m4l_cons", "$m_{4l}^{cons}$", 80, 0, 400))
         # variables harvested from a specific tree, e.g. events.Tau['pt']
         collection_dict = {f"{c}_{v}": col_acc(np.array([]))
                            for (c, v) in self.collection_vars}
@@ -130,8 +123,7 @@ class AnalysisProcessor(processor.ProcessorABC):
 
     def process(self, events):
         self.output = self.accumulator.identity()
-        
-        print('...processing', events.metadata['dataset'])
+        print(f"...processing {events.metadata['dataset']}\n")
         filename = events.metadata['filename']
         
         # organize dataset, year, luminosity
@@ -142,11 +134,17 @@ class AnalysisProcessor(processor.ProcessorABC):
         sample = properties['dataset'][0]
         group = properties['group'][0]
         is_data = 'data' in group
-        is_UL = 'UL' in sample
+        is_UL = True
         nevts, xsec = properties['nevts'][0], properties['xsec'][0]
+
+        # if running on ntuples, need the pre-skim sum_of_weights
+        if self.nevts_dict is not None:
+            nevts = self.nevts_dict[dataset]
+
+        # weight by the data-MC luminosity ratio
         sample_weight = self.lumi[year] * xsec / nevts
         if is_data: sample_weight=1
-            
+
         # if signal, get sample mass
         mass = 0
         if (group=='signal'):
@@ -162,12 +160,12 @@ class AnalysisProcessor(processor.ProcessorABC):
 
         # global weights: sample weight, gen weight, pileuODp weight
         weights = analysis_tools.Weights(len(events))
-        ones = np.ones(len(events))
-        if (group=='dyjets'):
+        ones = np.ones(len(events), dtype=float)
+        if (group=='dyjets'): # dy+njets stitching
             dyjets_weights = stitch_dyjets(self.info, name, events)
             weights.add(f'dyjets_sample_weights',
                         np.array(dyjets_weights, dtype=float))
-        else:
+        else: # otherwise weight by luminosity ratio
             weights.add('sample_weight', ones*sample_weight)
         if (self.pileup_tables is not None) and not is_data:
             weights.add('gen_weight', events.genWeight)
@@ -175,6 +173,10 @@ class AnalysisProcessor(processor.ProcessorABC):
                                             self.pileup_tables[dataset],
                                             self.pileup_bins)
             weights.add('pileup_weight', pu_weights)
+        if is_data: # golden json weighting
+            lumi_mask = LumiMask(self.golden_jsons[year])
+            lumi_mask = lumi_mask(events.run, events.luminosityBlock)
+            weights.add('lumi_mask', lumi_mask)
 
         # grab baselinely defined leptons 
         baseline_e = get_baseline_electrons(events.Electron, self.cutflow)
@@ -267,15 +269,22 @@ class AnalysisProcessor(processor.ProcessorABC):
                              constrain=True)
 
             # output event-level info
-            self.output["evt"] += self.accumulate(events.event, flatten=False)
-            self.output["lumi"] += self.accumulate(events.luminosityBlock, flatten=False)
-            self.output["run"] += self.accumulate(events.run, flatten=False)
+            #self.output["evt"] += self.accumulate(events.event, flatten=False)
+            #self.output["lumi"] += self.accumulate(events.luminosityBlock, flatten=False)
+            #self.output["run"] += self.accumulate(events.run, flatten=False)
             #self.output['tight'] += self.accumulate(tight_mask, flatten=False)
             
-
+            # if blind data consistent with a Higgs
+            mtt = ak.flatten((lltt['tt']['t1']+lltt['tt']['t2']).mass)
+            blind = np.ones(len(lltt), dtype=bool)
+            if is_data and self.blind:
+                mtt_corr = masses['mtt_corr']
+                blind = ((mtt < 40) & (mtt_corr > 120))
+            
+            # fill output divided into 0 jets (ggA-like) or 1+ jets (bbA-like) 
             for j, bjet_label in enumerate(['0 b-jets', '$1+ b-jets']): 
                 bjet_mask = (n_bjets==0) if (j==0) else (n_bjets>0)
-                selected, w_selected = lltt[bjet_mask], w[bjet_mask]
+                selected, w_selected = lltt[(blind & bjet_mask)], w[(blind & bjet_mask)]
 
                 # fill the four-vectors
                 label_dict = {('ll', 'l1'): '1', ('ll', 'l2'): '2',
@@ -294,7 +303,7 @@ class AnalysisProcessor(processor.ProcessorABC):
                     self.output['mass'].fill(group=group, dataset=dataset, tight='tight', 
                                              category=cat, leg=label, bjets=bjet_label, 
                                              weight=w_selected, mass=ak.flatten(p4.mass))
-                    
+
                 mll = ak.flatten((selected['ll']['l1']+selected['ll']['l2']).mass)
                 self.output['mll'].fill(group=group, dataset=dataset, tight='tight',
                                         category=cat, bjets=bjet_label, 
@@ -316,7 +325,7 @@ class AnalysisProcessor(processor.ProcessorABC):
                                           tight='tight', category=cat,
                                           mass_type=mass_type,
                                           bjets=bjet_label, weight=w_selected, 
-                                          mass=mass_data[bjet_mask])
+                                          mass=mass_data[blind & bjet_mask])
 
         return self.output
 

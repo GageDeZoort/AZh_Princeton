@@ -55,6 +55,7 @@ class SamplePathProcessor:
       try: 
          open_file = uproot.open(good_path)
          logging.info(f'SUCCEEDED in loading file with {ep}.')
+         self.previous_endpoints.append(ep)
          return good_path
       except: 
          logging.info(f'FAILED to load file with {ep}.')
@@ -66,15 +67,28 @@ class SamplePathProcessor:
       command = f'xrdfs {redirector} locate -d -m {path}'
       logging.info(f'Running xrdfs:\n{command}\n')
       try:
-         eps = subprocess.check_output(command,
-                                       shell=True).decode()
+         eps_raw = subprocess.check_output(command,
+                                           shell=True).decode()
+         eps = eps_raw.replace('\n', '').replace('Server','')
+         eps = eps.replace('ReadWrite','').split(' ')
+
+         # try to grab a desy or ifn or wisc path first
+         try_stable = [ep for ep in eps 
+                       if ('desy' in ep) or ('ifn' in ep) or ('wisc' in ep)]
+         for ep in try_stable:
+            good_path = self.check_endpoint(ep, file)
+            if (good_path is not None): return good_path
+               
+         # otherwise try other paths
          eps = ['root://' + ep.split(' ')[0] + '/'
-                for ep in eps.splitlines()]
+                for ep in eps_raw.splitlines() 
+                if (('cmsio' not in ep) and ('sdfarm' not in ep) 
+                    and ('transfer' not in ep) and ('mit' not in ep)
+                    and ('ingrid' not in ep))]
          for ep in eps:
             good_path = self.check_endpoint(ep, file)
-            if (good_path is not None): 
-               return good_path
-            else: continue
+            if (good_path is not None): return good_path
+
       except subprocess.CalledProcessError as e:
          logging.info(f'Failed querying possible endpoints')
       return None
@@ -86,21 +100,24 @@ class SamplePathProcessor:
       if ((self.process is not None) and (file!=self.process)):
          return old_ep+file
 
-      self.previous_endpoints.append(old_ep)
-      previous_eps = np.unique(self.previous_endpoints)
-
+      # did the previous endpoint work? 
+      if (('cmsio' in old_ep) or ('sdfarm' in old_ep)
+          or ('transfer' in old_ep) or ('mit' in old_ep)
+          or ('ingrid' in old_ep)): 
+         good_path = None
+      else: 
+         logging.info('Trying the old endpoint.')
+         good_path = self.check_endpoint(old_ep, file)
+      if good_path is not None: return good_path
+ 
       # is file on the lpc? --> if so, go for this option
       logging.info('Trying the LPC redirector')
-      good_path = self.check_endpoint('root://cmsxrootd-site.fnal.gov/', 
+      good_path = self.check_endpoint('root://cmsxrootd-site.fnal.gov/',
                                       file)
       if good_path is not None: return good_path
-
-      # otherwise, did the previous endpoint work? 
-      logging.info('Trying the old endpoint.')
-      good_path = self.check_endpoint(old_ep, file)
-      if good_path is not None: return good_path
       
-      # maybe another file's endpoint works? 
+      # maybe another file's endpoint works?
+      previous_eps = np.unique(self.previous_endpoints)
       found = False
       logging.info('Resorting to previously identified endpoints.')
       for ep in previous_eps:

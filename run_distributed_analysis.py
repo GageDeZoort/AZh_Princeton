@@ -13,7 +13,7 @@ from coffea import processor, util
 from coffea.nanoevents import NanoEventsFactory, BaseSchema, NanoAODSchema
 from distributed import Client
 from lpcjobqueue import LPCCondorCluster
-from processors.analysis_processor import AnalysisProcessor
+from analysis_processor import AnalysisProcessor
 from utils.sample_utils import *
 from pileup.pileup_utils import *
 
@@ -26,6 +26,7 @@ def parse_args():
     add_arg('--use-MC', action='store_true')
     add_arg('--use-signal', action='store_true')
     add_arg('--use-legacy', action='store_true')
+    add_arg('--test-mode', action='store_true')
     add_arg('config', nargs='?', default='configs/MC_2018_config.yaml')
     add_arg('-v', '--verbose', action='store_true')
     add_arg('--show-config', action='store_true')
@@ -49,10 +50,18 @@ use_MC, use_signal = args.use_MC, args.use_signal
 use_data, use_UL = args.use_data, (not args.use_legacy)
 indir = "sample_lists/sample_yamls"
 
+# load up golden jsons
+golden_json_dir = 'sample_lists/data_certification'
+golden_jsons = {'2018': join(golden_json_dir, 'data_cert_2018.json'),
+                '2017': join(golden_json_dir, 'data_cert_2017.json'),
+                '2016post': join(golden_json_dir, 'data_cert_2016.json'),
+                '2016preVFP': join(golden_json_dir, 'data_cert_2016.json')}
+
 # build fileset and corresponding sample info
 fileset = {}
-pileup_tables=None
+pileup_tables = None
 
+# load up non-signal MC csv / yaml files
 MC_string = f'MC_UL_{year}' if use_UL else f'MC_{year}'
 if use_MC:
     MC_fileset = get_fileset(join(indir, MC_string+'.yaml'))
@@ -63,17 +72,20 @@ if use_MC:
 sample_info = load_sample_info(join('sample_lists',
                                     MC_string+'.csv'))
 
+# load up signal MC csv / yaml files
 signal_string = f'signal_UL_{year}' if use_UL else f'signal_{year}'
 if use_signal:
-    signal_fileset = get_fileset(join(indir, MC_string+'.yaml'))
-    pileup_tables = get_pileup_tables(MC_fileset.keys(), year,
+    signal_fileset = get_fileset(join(indir, signal_string+'.yaml'))
+    pileup_tables = get_pileup_tables(signal_fileset.keys(), year,
                                       UL=use_UL, pileup_dir='pileup')
     fileset.update(signal_fileset)
 
 sample_info = np.append(sample_info, 
                         load_sample_info(join('sample_lists', 
-                                              MC_string+'.csv')))
+                                              signal_string+'.csv')))
+logging.info(f'{pileup_tables[0].keys()}')
 
+# load up data csv / yaml files
 data_string = f'data_UL_{year}' if use_UL else f'data_{year}'
 if use_data:
     data_fileset = get_fileset(join(indir, data_string+'.yaml'))
@@ -84,12 +96,27 @@ sample_info = np.append(sample_info,
                         load_sample_info(join('sample_lists',
                                               data_string+'.csv')))
 
+if args.test_mode: fileset = {k: v[:1] for k, v in fileset.items()}
+
+# try to sum the sum_of_weights from the ntuples
+nevts_dict = {}
+try:
+    for file, samples in fileset.items():
+        sum_of_weights = 0
+        for sample in samples:
+            if ('1of3_Electrons' not in sample): continue
+            sum_of_weights += uproot.open(sample)['hWeights;1'].values()[0]
+        nevts_dict[file] = sum_of_weights
+    logging.info(f'Successfully built sum_of_weights dict:\n {nevts_dict}')
+except: nevts_dict = None
+
 logging.info(f"Fileset:\n{fileset.keys()}")
 
 # start timer, initiate cluster, ship over files
 tic = time.time()
 infiles = ['processors/analysis_processor.py', 
            'selections/preselections.py',
+           'selections/weights.py',
            'utils/cutflow.py', 
            'pileup/pileup_utils.py',
            f'sample_lists/MC_{year}.csv',
@@ -113,7 +140,9 @@ exe_args = {
 
 # instantiate processor module
 proc_instance = AnalysisProcessor(sample_info=sample_info,
-                                  pileup_tables=pileup_tables)
+                                  pileup_tables=pileup_tables[0],
+                                  golden_jsons=golden_jsons,
+                                  nevts_dict=nevts_dict)
 
 hists, metrics = processor.run_uproot_job(
    fileset,
@@ -133,6 +162,16 @@ logging.info(f"Finished in {elapsed:.1f}s")
 logging.info(f"Events/s: {metrics['entries'] / elapsed:.0f}")
 
 # dump output
+import time
 outdir = '/srv'
+outfile = time.strftime("%Y-%m%-%d-%H%M") + ".coffea"
+namestring = f"UL_{year}" if use_UL else f"legacy_{year}"
+if use_MC and use_data and use_signal:
+    namestring = f"all_{namestring}"
+else:
+    if use_MC: namestring = f"MC_{namestring}"
+    if use_signal: namestring = f"signal_{namestring}"
+    if use_data: namestring = f"data_{namestring}"
+
 util.save(hists, 
-          os.path.join(outdir, config['output_file']))
+          os.path.join(outdir, f"{namestring}_{outfile}"))

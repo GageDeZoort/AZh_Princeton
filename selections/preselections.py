@@ -11,9 +11,10 @@ def filter_MET(events, selections, cutflow, year, UL=True, data=False):
                       flags.HBHENoiseIsoFilter &
                       flags.EcalDeadCellTriggerPrimitiveFilter &
                       flags.BadPFMuonFilter & 
-                      flags.BadPFMuonDzFilter & 
                       flags.eeBadScFilter &
                       flags.ecalBadCalibFilter)
+        try: MET_filter = MET_filter & flags.BadPFMuonDzFilter
+        except: pass
     if ('2016' in year) and UL: 
         MET_filter = (flags.goodVertices & 
                       flags.globalSuperTightHalo2016Filter & 
@@ -118,9 +119,6 @@ def get_baseline_taus(taus, cutflow, is_UL=False):
     baseline_t = baseline_t[(np.abs(baseline_t.dz) < 0.2)]
     cutflow.fill_object(baseline_t, '|dz|<0.2', obj)
     
-    baseline_t = baseline_t[(baseline_t.idDecayModeOldDMs == 1)] 
-    cutflow.fill_object(baseline_t, 'idDecayModeOldDMs==1', obj)
-
     baseline_t = baseline_t[((baseline_t.decayMode != 5) & 
                        (baseline_t.decayMode != 6))]
     cutflow.fill_object(baseline_t, 'decayMode!=5,6', obj)

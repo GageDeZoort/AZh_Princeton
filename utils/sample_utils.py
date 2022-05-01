@@ -2,6 +2,7 @@ import os
 import sys
 sys.path.append('../')
 import yaml
+import uproot
 import numpy as np
 from coffea import processor
 from coffea.processor import column_accumulator as col_acc
@@ -63,6 +64,36 @@ def get_fileset_arrays(fileset, collection_vars=[], global_vars=[],
                                    executor_args={'schema': NanoAODSchema, 
                                                   'workers': 20})
     return out    
+
+def get_nevts_dict(fileset, year, high_stats=False):
+    nevts_dict = {}
+
+    # loop over base files (non extension)
+    for sample, files in fileset.items():
+        if '_ext' in sample: continue
+        sum_of_weights = 0
+        for f in files:
+            if ('1of3_Electrons' not in f): continue
+            sum_of_weights += uproot.open(f)['hWeights;1'].values()[0]
+        nevts_dict[sample] = sum_of_weights
+
+    # loop over additional extension samples
+    for sample, files in fileset.items():
+        if '_ext' not in sample: continue
+        sum_of_weights = 0
+        for f in files:
+            if ('1of3_Electrons' not in f): continue
+            sum_of_weights += uproot.open(f)['hWeights;1'].values()[0]
+        if 'ZHToTauTau' in sample:
+            nevts_dict[sample] = sum_of_weights
+            continue
+        name_base = sample.split('_ext')[0] + f'_{year}'
+        if 'TuneCP5' in sample:
+            name_base = sample.split('TuneCP5_ext')[0] + f'_{year}'
+        nevts_dict[name_base] += sum_of_weights
+        nevts_dict[sample] = nevts_dict[name_base]
+    
+    return nevts_dict
 
 
 class VariableHarvester(processor.ProcessorABC):

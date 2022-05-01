@@ -60,9 +60,6 @@ def get_baseline_electrons(electrons, cutflow):
                         (np.abs(electrons.dz)  < 0.2)]
     cutflow.fill_object(baseline_e, 'dxy<0.045&&dz<0.2', obj)
 
-    baseline_e = baseline_e[(baseline_e.mvaFall17V2noIso_WP90 > 0.5)]
-    cutflow.fill_object(baseline_e, 'mvaFall17V2noIsoWP90', obj)
-                                
     baseline_e = baseline_e[(baseline_e.lostHits < 2)]
     cutflow.fill_object(baseline_e, 'lostHits<2', obj)
     
@@ -75,8 +72,11 @@ def get_baseline_electrons(electrons, cutflow):
     baseline_e = baseline_e[(np.abs(baseline_e.eta) < 2.5)]
     cutflow.fill_object(baseline_e, '|eta|<2.5', obj)
     
-    #(electrons.pfRelIso03_all < 0.2) &
     return baseline_e
+
+def tight_electrons(electrons):
+    return ((electrons.mvaFall17V2noIso_WP90 > 0) & 
+            (electrons.pfRelIso03_all < 0.15))
 
 def get_baseline_muons(muons, cutflow):
     obj = 'baseline muons'
@@ -85,14 +85,6 @@ def get_baseline_muons(muons, cutflow):
     baseline_m = muons[((muons.isTracker) | (muons.isGlobal))]
     cutflow.fill_object(baseline_m, 'tracker|global', obj)
     
-    if 'looseId' in muons.fields:
-        id_mask = (baseline_m.looseId | baseline_m.mediumId | baseline_m.tightId)
-    else:
-        id_mask = (baseline_m.mediumId | baseline_m.tightId)
-
-    baseline_m = baseline_m[id_mask]
-    cutflow.fill_object(baseline_m, 'looseId|mediumId|tightId', obj)
-
     baseline_m = baseline_m[(np.abs(baseline_m.dxy) < 0.045)]
     baseline_m = baseline_m[(np.abs(baseline_m.dz) < 0.2)]
     cutflow.fill_object(baseline_m, 'dz<0.045|dxy<0.2', obj)
@@ -103,8 +95,11 @@ def get_baseline_muons(muons, cutflow):
     baseline_m = baseline_m[(np.abs(baseline_m.eta) < 2.4)]  
     cutflow.fill_object(baseline_m, '|eta|<2.4', obj)
  
-    #(muons.pfRelIso04_all < 0.25)]
     return baseline_m
+
+def tight_muons(muons):
+    return ((muons.looseId | muons.mediumId | muons.tightId) &
+            (muons.pfRelIso04_all < 0.15))
 
 def get_baseline_taus(taus, cutflow, is_UL=False):
     obj = 'baseline taus'
@@ -123,16 +118,76 @@ def get_baseline_taus(taus, cutflow, is_UL=False):
                        (baseline_t.decayMode != 6))]
     cutflow.fill_object(baseline_t, 'decayMode!=5,6', obj)
     
-    baseline_t = baseline_t[(baseline_t.idDeepTau2017v2p1VSjet > 0)]
-    cutflow.fill_object(baseline_t, 'idDeepTau2017v2p1VSjet>0', obj)
+    baseline_t = baseline_t[((baseline_t.idDeepTau2017v2p1VSjet & 1) > 0)]
+    cutflow.fill_object(baseline_t, 'VSjet VVVLoose', obj)
 
-    baseline_t = baseline_t[(baseline_t.idDeepTau2017v2p1VSmu > 0)] # Baseline
-    cutflow.fill_object(baseline_t, 'idDeepTau2017v2p1VSmu>0', obj)
+    baseline_t = baseline_t[((baseline_t.idDeepTau2017v2p1VSmu & 1) > 0)] # Baseline
+    cutflow.fill_object(baseline_t, 'VSmu VLoose', obj)
 
-    baseline_t = baseline_t[(baseline_t.idDeepTau2017v2p1VSe > 3)]  # VBaseline
-    cutflow.fill_object(baseline_t, 'idDeepTau2017v2p1VSe>3', obj)
+    baseline_t = baseline_t[((baseline_t.idDeepTau2017v2p1VSe & 4) > 0)]  
+    cutflow.fill_object(baseline_t, 'VSe VLoose', obj)
 
     return baseline_t
+
+def tight_hadronic_taus(taus, cat):
+    vsJet_medium = ((taus.idDeepTau2017v2p1VSjet & 16) > 0)
+    if cat[2:]=='et': 
+        return vsJet_medium & ((taus.idDeepTau2017v2p1VSe & 32) > 0)
+    elif cat[2:]=='mt':
+        return vsJet_medium & ((taus.idDeepTau2017v2p1VSmu & 8) > 0)
+    elif cat[2:]=='tt':
+        return vsJet_medium
+
+def tight_events(lltt, cat):
+    l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
+    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+    l1_mask, l2_mask, t1_mask, t2_mask = 0, 0, 0, 0
+    if cat[:2]=='ee': 
+        l1_mask = ak.flatten(tight_electrons(l1))  
+        l2_mask = ak.flatten(tight_electrons(l2))
+    if cat[:2]=='mm':
+        l1_mask = ak.flatten(tight_muons(l1)) 
+        l2_mask = ak.flatten(tight_muons(l2))
+    if cat[2:]=='em':
+        t1_mask = ak.flatten(tight_electrons(t1)) 
+        t2_mask = ak.flatten(tight_muons(t2))
+    if cat[2:]=='et':
+        t1_mask = ak.flatten(tight_electrons(t1)) 
+        t2_mask = ak.flatten(tight_hadronic_taus(t2, cat))
+    if cat[2:]=='mt':
+        t1_mask = ak.flatten(tight_muons(t1))  
+        t2_mask = ak.flatten(tight_hadronic_taus(t2, cat))
+    if cat[2:]=='tt':
+        t1_mask = ak.flatten(tight_hadronic_taus(t1, cat)) 
+        t2_mask = ak.flatten(tight_hadronic_taus(t2, cat))
+    return (l1_mask, l2_mask, t1_mask, t2_mask)
+
+def tight_events_denom(lltt, cat, mode=-1):
+    l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
+    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+    mask = np.ones(len(l1), dtype=bool)
+
+    # tighten Z decay leptons
+    if cat[:2]=='ee':
+        mask = mask & (ak.flatten(tight_electrons(l1)) &
+                       ak.flatten(tight_electrons(l2)))
+    if cat[:2]=='mm':
+        mask = mask & (ak.flatten(tight_muons(l1)) &
+                       ak.flatten(tight_muons(l2)))
+
+    # tighten prompt di-tau candidates
+    if (mode=='e') or (mode=='m'):
+        mask = mask & ak.flatten(tight_hadronic_taus(t2, cat))
+    if (mode=='lt') and cat[2]=='e':
+        mask = mask & ak.flatten(tight_electrons(t1))
+    if (mode=='lt') and cat[2]=='m':
+        mask = mask & ak.flatten(tight_muons(t1))
+    if (mode=='tt'):
+        mask = mask & ak.flatten(tight_hadronic_taus(t1, cat))
+
+    return mask
+
+
 
 def get_baseline_jets(jet, cutflow, year='2018'):
     obj = 'baseline_jets'
@@ -315,14 +370,23 @@ def build_Z_cand(ll, cutflow):
     ll_mass = (ll['l1'] + ll['l2']).mass
     ll = ll[(ll['l1'].charge != ll['l2'].charge) &
             ((ll_mass > 60) & (ll_mass < 120))]
+    return ll[(~ak.is_none(ll, axis=1))] 
+
+def closest_to_Z_mass(ll):
     mass_diffs = abs((ll['l1'] + ll['l2']).mass - 91.118)
-    #min_mass_filter = ak.argmin(mass_diffs, axis=1, keepdims=True)
-    min_mass_filter = ak.argmin(mass_diffs, axis=1, 
-                            keepdims=True, mask_identity=False)
+    min_mass_filter = ak.argmin(mass_diffs, axis=1,
+                                keepdims=True, mask_identity=False)
     min_mass_filter = min_mass_filter[min_mass_filter>=0]
     ll = ll[min_mass_filter]
-    #cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(ll, axis=1))), 'Z_cand')
-    return ll[(~ak.is_none(ll, axis=1))] #lltt #ak.fill_none(lltt, [])
+    return ll[(~ak.is_none(ll, axis=1))]
+
+def tighten_Z_legs(ll, cat):
+    l1, l2 = ll['l1'], ll['l2']
+    if cat[:2]=='ee':
+        ll = ll[(tight_electrons(l1) & tight_electrons(l2))]
+    elif cat[:2]=='mm':
+        ll = ll[(tight_muons(l1) & tight_muons(l2))]
+    return ll[~ak.is_none(ll, axis=1)]
 
 def dR_lltt(lltt, cat, cutflow):
     dR_select = {'ee': 0.3, 'em': 0.3, 'mm': 0.3, 'me': 0.3,
@@ -347,8 +411,9 @@ def trigger_filter(ll, trig_obj, cat, cutflow):
     lltrig = ak.cartesian({'ll': ll, 'trobj': trig_obj}, axis=1)
     l1dR_matches = (lltrig['ll']['l1'].delta_r(lltrig['trobj']) < 0.5)
     l2dR_matches = (lltrig['ll']['l2'].delta_r(lltrig['trobj']) < 0.5)
-    filter_bit = ((lltrig['trobj'].filterBits & 2) == 2)
-    if cat[:2] == 'mm': filter_bit = (filter_bit | lltrig['trobj'].filterBits & 8 > 0)
+    filter_bit = ((lltrig['trobj'].filterBits & 2) > 0)
+    if cat[:2] == 'mm': filter_bit = (filter_bit | 
+                                      (lltrig['trobj'].filterBits & 8 > 0))
 
     l1_matches = lltrig[l1dR_matches & 
                         (lltrig['ll']['l1'].pt > pt_min) & 
@@ -364,20 +429,32 @@ def trigger_filter(ll, trig_obj, cat, cutflow):
     #cutflow.fill_cutflow(np.sum(trig_match>0), 'trigger filter')
     return trig_match
 
-def build_ditau_cand(lltt, cat, cutflow):
+def build_ditau_cand(lltt, cat, cutflow, OS=True):
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
-    if cat[2:] == 'mt':
-        lltt = lltt[(t2.idDeepTau2017v2p1VSmu > 14)] 
-    elif cat[2:] == 'tt':
-        lltt = lltt
-    elif cat[2:] == 'et':
-        lltt = lltt[(t2.idDeepTau2017v2p1VSe > 31)]
-    elif cat[2:] == 'em':
-        lltt = lltt
-    
-    LT = lltt['tt']['t1'].pt + lltt['tt']['t2'].pt
+    if OS: lltt = lltt[t1.charge*t2.charge < 0]
+    else: lltt = lltt[t1.charge*t2.charge > 0]
+    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+    return lltt[~ak.is_none(lltt, axis=1)]
+
+def tighten_ditau_legs(lltt, cat, cutflow):
+    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+    mask = 0
+    if cat[2:]=='em':
+        mask = (tight_electrons(t1) & tight_muons(t2))
+    if cat[2:]=='et':
+        mask = (tight_electrons(t1) & tight_hadronic_taus(t2, cat))
+    if cat[2:]=='mt':
+        mask = (tight_muons(t1) & tight_hadronic_taus(t2, cat))
+    if cat[2:]=='tt':
+        mask = (tight_hadronic_taus(t1, cat) &
+                tight_hadronic_taus(t2, cat))
+    lltt = lltt[mask]
+    return lltt[~ak.is_none(lltt, axis=1)]
+
+def highest_LT(lltt, cutflow):
+    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+    LT = t1.pt + t2.pt
     lltt = lltt[ak.argmax(LT, axis=1, keepdims=True)]
-    
     #cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(lltt, axis=1))), 'ditau_cand')
     return lltt[~ak.is_none(lltt, axis=1)]
 
@@ -391,6 +468,77 @@ def dR_llttj(llttj, cutflow):
     dR_mask = (overlaps==0)
     cutflow.fill_cutflow(np.sum(dR_mask>0), 'dR')
     return dR_mask
+
+def is_prompt(lltt, cat):
+    l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
+    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+    prompt_l1 = ((l1.genPartFlav==1) | (l1.genPartFlav==15))
+    prompt_l2 = ((l2.genPartFlav==1) | (l2.genPartFlav==15))
+    prompt_mask = prompt_l1 & prompt_l2
+
+    if (cat[2:]=='em'):
+        prompt_t1 = ((t1.genPartFlav==1) | (t1.genPartFlav==15))  
+        prompt_t2 = ((t2.genPartFlav==1) | (t2.genPartFlav==15))  
+        prompt_mask = prompt_mask & prompt_t1 & prompt_t2
+    if (cat[2:]=='et'):
+        prompt_t1 = ((t1.genPartFlav==1) | (t1.genPartFlav==15)) 
+        prompt_t2 = ((t2.genPartFlav>0) & (t2.genPartFlav<6))
+        prompt_mask = prompt_mask & prompt_t1 & prompt_t2
+    if (cat[2:]=='mt'):
+        prompt_t1 = ((t1.genPartFlav==1) | (t1.genPartFlav==15))  
+        prompt_t2 = ((t2.genPartFlav>0) & (t2.genPartFlav<6))
+        prompt_mask = prompt_mask & prompt_t1 & prompt_t2
+    if (cat[2:]=='tt'):
+        prompt_t1 = ((t1.genPartFlav>0) & (t1.genPartFlav<6))  
+        prompt_t2 = ((t2.genPartFlav>0) & (t2.genPartFlav<6)) 
+        prompt_mask = prompt_mask & prompt_t1 & prompt_t2
+
+    fake_legs = {1: ~prompt_l1, 2: ~prompt_l2, 
+                 3: ~prompt_t1, 4: ~prompt_t2}
+    return ak.flatten(prompt_mask), fake_legs
+
+def is_prompt_base(lltt, cat, mode=-1):
+    l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
+    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+    prompt_l1 = ((l1.genPartFlav==1) | (l1.genPartFlav==15))
+    prompt_l2 = ((l2.genPartFlav==1) | (l2.genPartFlav==15))
+    prompt_mask = prompt_l1 & prompt_l2
+
+    if (mode=='e') or (mode=='m'):
+        prompt_t2 = ((t2.genPartFlav>0) & (t2.genPartFlav<6))
+        prompt_mask = prompt_mask & prompt_t2
+    if (mode=='lt'):
+        prompt_t1 = ((t1.genPartFlav==1) | (t1.genPartFlav==15))
+        prompt_mask = prompt_mask & prompt_t1
+    if (mode=='tt'):
+        prompt_t2 = ((t2.genPartFlav>0) & (t2.genPartFlav<6))
+        prompt_mask = prompt_mask & prompt_t2
+    return ak.flatten(prompt_mask)
+
+def is_prompt_lepton(lltt, cat, mode=-1):
+    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+    if (mode=='e') or (mode=='m'):
+        return ak.flatten((t1.genPartFlav==1) | (t1.genPartFlav==15))
+    if (mode=='lt'):
+        return ak.flatten((t2.genPartFlav>0) & (t2.genPartFlav<6))
+    if (mode=='tt'):
+        return ak.flatten((t2.genPartFlav>0) & (t2.genPartFlav<6))
+    else: return -1
+
+def is_tight_lepton(lltt, cat, mode=-1):
+    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+    mask = np.ones(len(t1), dtype=bool)
+
+    # tighten prompt di-tau candidates
+    if (mode=='e'):
+        mask = mask & ak.flatten(tight_electrons(t1))
+    if (mode=='m'):
+        mask = mask & ak.flatten(tight_muons(t1))
+    if (mode=='lt'):
+        mask = mask & ak.flatten(tight_hadronic_taus(t2, cat))
+    if (mode=='tt'):
+        mask = mask & ak.flatten(tight_hadronic_taus(t1, cat))
+    return mask
 
 def higgsLT(lltt, cat, cutflow):
     hLT_thld = {'et': 30, 'mt': 40, 'em': 20, 'tt': 80}

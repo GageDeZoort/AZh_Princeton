@@ -69,8 +69,8 @@ def same_sign(lltt):
     t2 = lltt['tt']['t2']
     return lltt[(t1.charge==t2.charge)]
 
-def transverse_mass_cut(lltt, met, thld=40):
-    lep = lltt['tt']['t1']
+def transverse_mass_cut(lltt, met, thld=40, leg='t1'):
+    lep = lltt['tt'][leg]
     ET_lep = np.sqrt(lep.mass**2 + lep.pt**2)
     px_lep = lep.pt * np.cos(lep.phi)
     py_lep = lep.pt * np.sin(lep.phi)
@@ -80,7 +80,8 @@ def transverse_mass_cut(lltt, met, thld=40):
     mT = np.sqrt((ET_lep + ET_miss)**2
                  - (px_lep + Ex_miss)**2 
                  - (py_lep + Ey_miss)**2)
-    return lltt.mask[(mT < thld)]
+    lltt = lltt[(mT < thld)]
+    return lltt[(~ak.is_none(lltt, axis=1))]
 
 def apply_numerator_selections(lltt, jet_faking_x, cat):
     t1 = lltt['tt']['t1'] 

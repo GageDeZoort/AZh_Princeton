@@ -29,7 +29,7 @@ def get_pileup_table(pileup_MC, year, shift=None, UL=False):
     pileup_MC, bins = np.histogram(pileup_MC, bins, density=True)
     ratios = (pileup_data/integral_data)/pileup_MC
     ratios[np.isinf(ratios) | np.isnan(ratios)] = 0
-    return (ratios, bins)
+    return ratios
 
 def get_pileup_tables(names, year, shift=None, UL=False, pileup_dir=''):
     pileup_data, bins = open_pileup_file(year, UL=UL, shift=shift,
@@ -49,7 +49,7 @@ def get_pileup_tables(names, year, shift=None, UL=False, pileup_dir=''):
         weights = np.nan_to_num(weights, neginf=0, posinf=0)
         weight_dict[name] = weights
 
-    return weight_dict, bins
+    return weight_dict
     
 def get_pileup_weights(pileup_MC, bin_weights, bins):
     pileup_MC = pileup_MC.to_numpy().astype(int)

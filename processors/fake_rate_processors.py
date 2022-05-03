@@ -27,7 +27,8 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                  pileup_tables=None, lumi_masks=None,
                  nevts_dict=None, high_stats=False,
                  dyjets_weights=None,
-                 eleID_SFs=None, muID_SFs=None, tauID_SFs=None):
+                 eleID_SFs=None, muID_SFs=None, tauID_SFs=None,
+                 e_trig_SFs=None, m_trig_SFs=None):
 
         # set up class variables
         self.info = sample_info
@@ -63,6 +64,8 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         self.eleID_SFs = eleID_SFs
         self.muID_SFs = muID_SFs
         self.tauID_SFs = tauID_SFs
+        self.e_trig_SFs = e_trig_SFs
+        self.m_trig_SFs = m_trig_SFs
 
         # bin variables by dataset, category, and leg
         dataset_axis = hist.Cat("dataset", "")
@@ -188,6 +191,12 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         baseline_e = get_baseline_electrons(events.Electron, self.cutflow)
         baseline_m = get_baseline_muons(events.Muon, self.cutflow)
         baseline_t = get_baseline_taus(events.Tau, self.cutflow, is_UL=is_UL)
+        
+        # apply energy scale corrections to hadronic taus (/fakes)
+        MET = events.MET
+        if not is_data:
+            baseline_t, MET = apply_tau_ES(baseline_t, MET, 
+                                           self.tauID_SFs, syst='nom')
 
         # count the number of leptons per event passing tight iso/ID
         e_counts = ak.num(baseline_e[tight_electrons(baseline_e)])
@@ -208,6 +217,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
             muons = baseline_m[mask]
             hadronic_taus = baseline_t[mask]
             w = weights.weight()[mask]
+            met = MET[mask]
 
             # build Zll candidate, check trigger filter
             l = electrons if (cat[0]=='e') else muons
@@ -215,9 +225,18 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
             ll = dR_ll(ll, self.cutflow)
             ll = build_Z_cand(ll, self.cutflow)
             ll = closest_to_Z_mass(ll)
-            mask = trigger_filter(ll, events_cat.TrigObj,
-                                  cat, self.cutflow)
+            mask, tpt1, teta1, tpt2, teta2 = trigger_filter(ll,
+                                                            events_cat.TrigObj,
+                                                            cat, self.cutflow)
             
+            # apply trigger scale factors
+            trig_SFs = self.e_trig_SFs if cat[0]=='e' else self.m_trig_SFs
+            if not is_data:
+                wt1 = lepton_trig_weight(w, tpt1, teta1, trig_SFs, lep=cat[0])
+                wt2 = lepton_trig_weight(w, tpt2, teta2, trig_SFs, lep=cat[0])
+                w = w * wt1 * wt2
+
+
             # build di-tau candidate
             if cat[2:]=='mt':
                 tt = ak.cartesian({'t1': muons, 't2': hadronic_taus}, axis=1)
@@ -235,7 +254,6 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
             lltt = highest_LT(lltt, self.cutflow)
             
             # apply additional transverse mass / Higgs LT cut
-            met = events_cat.MET
             if (mode=='e') or (mode=='m'):
                 lltt = transverse_mass_cut(lltt, met, thld=40, leg='t1')
             if (mode=='tt'):

@@ -5,6 +5,8 @@ import uproot
 import awkward as ak
 import correctionlib
 from coffea.lookup_tools import extractor
+from coffea.nanoevents.methods import vector
+ak.behavior.update(vector.behavior)
 
 def get_sample_weight(info, name, year):
     eras = {'2016': 'Summer16', '2017': 'Fall17', '2018': 'Autumn18'}
@@ -74,23 +76,56 @@ class CustomWeights:
         out = f'CustomWeights()\n - bins: {self.bins}\n - weights: {self.weights}'
         return out
 
-def get_lepton_ID_weights(infile):
+def get_electron_ID_weights(infile):
     f = uproot.open(infile)
-    ID_weights = {'data': {}, 'MC': {}}
-    for key in f.keys():
-        k = key.split('_')[0].split('Eta')[-1]
-        if ('bins' in key) or ('Bins' in key): continue
-        bins, weights = f[key].values()
-        weights = CustomWeights(bins, weights)
-        if 'Data' in key: ID_weights['data'][k] = weights
-        if 'MC' in key: ID_weights['MC'][k] = weights
-    return ID_weights            
+    eta_map = {'Lt1p0': 0, '1p0to1p48': 0, '1p48to1p65': 0,
+               '1p65to2p1': 0, 'Gt2p1': 0}    
+    for eta_range in eta_map.keys():
+        mc_bins, mc_counts = f[f'ZMassEta{eta_range}_MC;1'].values()
+        data_bins, data_counts = f[f'ZMassEta{eta_range}_Data;1'].values()
+        ratio = np.nan_to_num(data_counts/mc_counts, 0, posinf=0, neginf=0)
+        weights = CustomWeights(data_bins, ratio)
+        eta_map[eta_range] = weights
+    return eta_map
+
+def get_muon_ID_weights(infile):
+    f = uproot.open(infile)
+    eta_map = {'Lt0p9': 0, '0p9to1p2': 0, '1p2to2p1': 0, 'Gt2p1': 0}
+    for eta_range in eta_map.keys():
+        mc_bins, mc_counts = f[f'ZMassEta{eta_range}_MC;1'].values()
+        data_bins, data_counts = f[f'ZMassEta{eta_range}_Data;1'].values()
+        ratio = np.nan_to_num(data_counts/mc_counts, 0, posinf=0, neginf=0)
+        weights = CustomWeights(data_bins, ratio)
+        eta_map[eta_range] = weights
+    return eta_map
+
+def get_electron_trigger_SFs(infile):
+    trigger_SFs = uproot.open(infile)
+    eta_map = {'Lt1p0': 0, '1p0to1p48': 0, '1p48to1p65': 0,
+               '1p65to2p1': 0, 'Gt2p1': 0}
+    for eta_range in eta_map.keys():
+        mc_bins, mc_counts = trigger_SFs[f'ZMassEta{eta_range}_MC;1'].values()
+        data_bins, data_counts = trigger_SFs[f'ZMassEta{eta_range}_Data;1'].values()
+        ratio = np.nan_to_num(data_counts/mc_counts, 0, posinf=0, neginf=0)
+        weights = CustomWeights(data_bins, ratio)
+        eta_map[eta_range] = weights
+    return eta_map
+
+def get_muon_trigger_SFs(infile):
+    trigger_SFs = uproot.open(infile)
+    eta_map = {'Lt0p9': 0, '0p9to1p2': 0, '1p2to2p1': 0, 'Gt2p1': 0}
+    for eta_range in eta_map.keys():
+        mc_bins, mc_counts = trigger_SFs[f'ZMassEta{eta_range}_MC;1'].values()
+        data_bins, data_counts = trigger_SFs[f'ZMassEta{eta_range}_Data;1'].values()
+        ratio = np.nan_to_num(data_counts/mc_counts, 0, posinf=0, neginf=0)
+        weights = CustomWeights(data_bins, ratio)
+        eta_map[eta_range] = weights
+    return eta_map
 
 def get_tau_ID_weights(infile):
     return correctionlib.CorrectionSet.from_file(infile)
 
 def lepton_ID_weight(l, lep, SF_tool, is_data=False):
-    source = 'data' if is_data else 'MC'
     eta_map = {'e': {'Lt1p0': [0, 1], '1p0to1p48': [1, 1.48], 
                      '1p48to1p65': [1.48, 1.65], '1p65to2p1': [1.65, 2.1],
                      'Gt2p1': [2.1, 100]},
@@ -104,7 +139,7 @@ def lepton_ID_weight(l, lep, SF_tool, is_data=False):
         mask = ((eta > eta_range[0]) &
                 (eta <= eta_range[1]))
         if len(mask)==0: continue
-        weight += (SF_tool[source][key](pt)*mask)
+        weight += (SF_tool[key](pt)*mask)
     return weight
 
 def tau_ID_weight(taus, SF_tool, is_data=False, syst='nom'):
@@ -123,6 +158,23 @@ def tau_ID_weight(taus, SF_tool, is_data=False, syst='nom'):
         
 def tau_ES_weight(taus, SF_tool):
     corr = SF_tool['tau_energy_scale']
+
+def lepton_trig_weight(w, pt, eta, SF_tool, lep=-1):
+    pt, eta = ak.to_numpy(pt), ak.to_numpy(eta)
+    eta_map = {'e': {'Lt1p0': [0, 1], '1p0to1p48': [1, 1.48],
+                     '1p48to1p65': [1.48, 1.65], '1p65to2p1': [1.65, 2.1],
+                     'Gt2p1': [2.1, 100]},
+               'm': {'Lt0p9': [0, 0.9], '0p9to1p2': [0.9, 1.2],
+                     '1p2to2p1': [1.2, 2.1], 'Gt2p1': [2.1, 100]}}
+    eta_map = eta_map[lep]
+    weight = np.zeros(len(w), dtype=float)
+    for key, eta_range in eta_map.items():
+        mask = ((abs(eta) > eta_range[0]) &
+                (abs(eta) <= eta_range[1]))
+        if len(mask)==0: continue
+        weight += (SF_tool[key](pt)*mask)
+    weight[weight==0] = 1
+    return weight
 
 def dyjets_stitch_weights(info, nevts_dict, year):
     lumis = {'2016preVFP': 35.9*1000, '2016postVFP': 35.9*1000,
@@ -153,9 +205,56 @@ def dyjets_stitch_weights(info, nevts_dict, year):
     p3, p4 = xsec['3']/xsec['inc'], xsec['4']/xsec['inc']
 
     N_0jet = nevts['inc'] * (1 - p1 - p2 - p3 - p4)
-    w_0jet = lumi * xsec['inc'] / N_0jet
-    #w_0jet = lumi * xsec['inc']/nevts['inc']
+    #w_0jet = lumi * xsec['inc'] / N_0jet
+    w_0jet = lumi * xsec['inc']/nevts['inc']
     bins = np.array([-0.5, 0.5, 1.5, 2.5, 3.5, 4.5])
     weights = np.array([w_0jet, w_1jet, w_2jet, w_3jet, 
                         w_4jet, w_0jet])
     return CustomWeights(bins, weights)
+
+def apply_tau_ES(taus, met, SF_tool, syst='nom'):
+    corr = SF_tool['tau_energy_scale']
+    mask = (((taus.decayMode==0) | (taus.decayMode==1) |
+             (taus.decayMode==2) | (taus.decayMode==10) | 
+             (taus.decayMode==11)) &
+            (taus.genPartFlav < 6) & 
+            (taus.genPartFlav > 0))
+    
+    flat_taus, ntaus = ak.flatten(taus), ak.num(taus)
+    flat_mask, nmask = ak.flatten(mask), ak.num(mask)
+    pt = flat_taus.pt[flat_mask]
+    eta = flat_taus.eta[flat_mask]
+    dm = flat_taus.decayMode[flat_mask]
+    genMatch = flat_taus.genPartFlav[flat_mask]
+    ID = 'DeepTau2017v2p1'
+    syst = syst
+    
+    TES = corr.evaluate(ak.to_numpy(pt), ak.to_numpy(eta), ak.to_numpy(dm), ak.to_numpy(genMatch),
+                        'DeepTau2017v2p1', 'nom')
+    TES_new = np.ones(len(flat_mask), dtype=float)
+    TES_new[flat_mask] = TES
+    TES = ak.unflatten(TES_new, ntaus)
+    
+    tau_p4 = ak.zip({'pt': taus.pt, 'eta': taus.eta,
+                     'phi': taus.phi, 'mass': taus.mass},
+                    with_name='PtEtaPhiMLorentzVector')
+    
+    taus['pt'] = taus.pt * TES
+    taus['eta'] = taus.eta * TES
+    taus['phi'] = taus.phi * TES
+    taus['mass'] = taus.mass * TES
+    tau_p4_corr = ak.zip({'pt': taus.pt, 'eta': taus.eta,
+                          'phi': taus.phi, 'mass': taus.mass},
+                         with_name='PtEtaPhiMLorentzVector')
+    
+    tau_p4_diff = tau_p4.add(tau_p4_corr.negative())
+    tau_p4_diff = ak.sum(tau_p4_diff, axis=1)
+    
+    met_p4 = ak.zip({'x': met.T1_pt * np.cos(met.T1_phi), 
+                     'y': met.T1_pt * np.sin(met.T1_phi),
+                     'z': 0, 't': 0},
+                    with_name='LorentzVector')
+    new_met = met_p4.add(tau_p4_diff)
+    met['pt'] = new_met.pt
+    met['phi'] = new_met.phi
+    return taus, met

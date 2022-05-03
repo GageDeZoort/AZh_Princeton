@@ -34,7 +34,8 @@ class AnalysisProcessor(processor.ProcessorABC):
                  pileup_tables=None, lumi_masks={}, blind=True,
                  nevts_dict=None, high_stats=False,
                  fake_rates=None, eleID_SFs=None, muID_SFs=None,
-                 tauID_SFs=None, dyjets_weights=None):
+                 tauID_SFs=None, dyjets_weights=None,
+                 e_trig_SFs=None, m_trig_SFs=None):
 
         # initialize member variables
         self.sync = sync
@@ -62,6 +63,8 @@ class AnalysisProcessor(processor.ProcessorABC):
         self.eleID_SFs = eleID_SFs
         self.muID_SFs = muID_SFs
         self.tauID_SFs = tauID_SFs
+        self.e_trig_SFs = e_trig_SFs
+        self.m_trig_SFs = m_trig_SFs
         self.dyjets_weights = dyjets_weights
 
         # bin variables by dataset, category, and leg
@@ -87,13 +90,13 @@ class AnalysisProcessor(processor.ProcessorABC):
                          hist.Bin("mass", "$m [GeV]$", 40, 0, 20))
         mll = hist.Hist("Counts", group_axis, dataset_axis, 
                         category_axis, bjet_axis,
-                        hist.Bin("mll", "$m_{ll} [GeV]$", 30, 60, 120))
+                        hist.Bin("mll", "$m_{ll} [GeV]$", 10, 60, 120))
         mtt = hist.Hist("Counts", group_axis, dataset_axis, mass_type_axis,
                         category_axis, bjet_axis, 
-                        hist.Bin("mass", "$m_{tt} [GeV]$", 40, 0, 200)) 
+                        hist.Bin("mass", "$m_{tt} [GeV]$", 20, 0, 200)) 
         m4l = hist.Hist("Counts", group_axis, dataset_axis, mass_type_axis,
                         category_axis, bjet_axis, 
-                        hist.Bin("mass", "$m_{4l}$ [GeV]", 50, 0, 2500))
+                        hist.Bin("mass", "$m_{4l}$ [GeV]", 40, 0, 400))
         # variables harvested from a specific tree, e.g. events.Tau['pt']
         collection_dict = {f"{c}_{v}": col_acc(np.array([]))
                            for (c, v) in self.collection_vars}
@@ -104,6 +107,7 @@ class AnalysisProcessor(processor.ProcessorABC):
         self._accumulator = processor.dict_accumulator(
             {**collection_dict, **global_dict,
              'tight': col_acc(np.array([])),
+             'cat': col_acc(np.array([])),
              'evt': col_acc(np.array([])), 
              'lumi': col_acc(np.array([])),
              'run': col_acc(np.array([])), 
@@ -152,11 +156,6 @@ class AnalysisProcessor(processor.ProcessorABC):
         # weight by the data-MC luminosity ratio
         sample_weight = self.lumi[year] * xsec / nevts
         if is_data: sample_weight=1
-
-        # if signal, get sample mass
-        mass = 0
-        if (group=='signal'):
-            mass = int(name.split('TauM')[-1])
         
         # apply global event selections
         global_selections = analysis_tools.PackedSelection()
@@ -174,8 +173,10 @@ class AnalysisProcessor(processor.ProcessorABC):
             weights.add(f'dyjets_sample_weights',
                         self.dyjets_weights(njets))
         else: # otherwise weight by luminosity ratio
+            print(name, sample_weight)
             weights.add('sample_weight', ones*sample_weight)
         if (self.pileup_tables is not None) and not is_data:
+            print(name, events.genWeight[0:5])
             weights.add('gen_weight', events.genWeight)
             pu_weights = get_pileup_weights(events.Pileup.nTrueInt,
                                             self.pileup_tables[dataset],
@@ -192,6 +193,12 @@ class AnalysisProcessor(processor.ProcessorABC):
         baseline_t = get_baseline_taus(events.Tau, self.cutflow, is_UL=is_UL)
         baseline_j = get_baseline_jets(events.Jet, self.cutflow)
         baseline_b = get_baseline_bjets(baseline_j, self.cutflow)
+
+        # apply energy scale corrections to hadronic taus (/fakes)
+        MET = events.MET
+        if not is_data:
+            baseline_t, MET = apply_tau_ES(baseline_t, MET, 
+                                           self.tauID_SFs, syst='nom')
 
         # seeds the lepton count veto
         e_counts = ak.num(baseline_e[tight_electrons(baseline_e)])
@@ -213,8 +220,10 @@ class AnalysisProcessor(processor.ProcessorABC):
             electrons = baseline_e[mask]
             muons = baseline_m[mask]
             hadronic_taus = baseline_t[mask]
+            met = MET[mask]
             bjet_counts = b_counts[mask]
             w = weights.weight()[mask]
+            print(cat, w[0:5])
             
             # build Zll candidate, check trigger filter
             l = electrons if (cat[0]=='e') else muons
@@ -222,9 +231,19 @@ class AnalysisProcessor(processor.ProcessorABC):
             ll = dR_ll(ll, self.cutflow)
             ll = build_Z_cand(ll, self.cutflow)
             ll = closest_to_Z_mass(ll)
-            mask = trigger_filter(ll, events_cat.TrigObj,
-                                  cat, self.cutflow)
+            mask, tpt1, teta1, tpt2, teta2 = trigger_filter(ll, 
+                                                            events_cat.TrigObj,
+                                                            cat, self.cutflow)
             
+            # apply trigger scale factors
+            trig_SFs = self.e_trig_SFs if cat[0]=='e' else self.m_trig_SFs
+            if not is_data:
+                wt1 = lepton_trig_weight(w, tpt1, teta1, trig_SFs, lep=cat[0])
+                wt2 = lepton_trig_weight(w, tpt2, teta2, trig_SFs, lep=cat[0])
+                w = w * wt1 * wt2
+            
+            print('trig', w[0:5])
+
             # build di-tau candidate
             if cat[2:]=='mt':
                 tt = ak.cartesian({'t1': muons, 't2': hadronic_taus}, axis=1)
@@ -244,10 +263,17 @@ class AnalysisProcessor(processor.ProcessorABC):
 
             # whittle down events
             lltt = lltt[mask]
-            met = events_cat.MET[mask]
+            events_cat = events_cat[mask]
+            met = met[mask]
             n_bjets = bjet_counts[mask]
             w = w[mask]
             if len(lltt)==0: continue
+
+            # sync output
+            self.output["cat"] += self.accumulate(np.array(len(events_cat)*[cat]), flatten=False)
+            self.output["evt"] += self.accumulate(events_cat.event, flatten=False)
+            self.output["run"] += self.accumulate(events_cat.run, flatten=False)
+            self.output["lumi"] += self.accumulate(events_cat.luminosityBlock, flatten=False)
 
             # determine which legs passed tight selections
             tight_masks = tight_events(lltt, cat)
@@ -263,14 +289,12 @@ class AnalysisProcessor(processor.ProcessorABC):
                 fake_weights = fw1*fw2*fw3*fw4
                 w = w * fake_weights
                 
-            # MC scale factors / additional corrections
-            if not is_data:
-                w = self.apply_lepton_ID_SFs(w, lltt, cat)
-
             # determine if event is consistent with being prompt
             prompt_mask = np.ones(len(lltt), dtype=bool)
             if not is_data:
                 prompt_mask, fake_legs = is_prompt(lltt, cat)
+                w = self.apply_lepton_ID_SFs(w, lltt, cat)
+            print('lepton ID', w[0:5])
 
             # save only prompt and tightly ID'd/iso'd final states
             #mask = (prompt_mask & tight_mask)
@@ -294,10 +318,6 @@ class AnalysisProcessor(processor.ProcessorABC):
                                   ak.to_numpy(met.covXY), ak.to_numpy(met.covYY),
                                   constrain=True)
 
-            # output event-level info
-            #self.output["evt"] += self.accumulate(events.event, flatten=False)
-                    
-            # if data, need to estimate the reducible contribution via non-tight events
             if is_data:
                 for j, tight in enumerate(['loose', 'tight']):
                     for k, bjet_label in enumerate(['0 b-jets', '1+ b-jets']):
@@ -322,7 +342,7 @@ class AnalysisProcessor(processor.ProcessorABC):
             if not is_data:
                 for k, bjet_label in enumerate(['0 b-jets', '$1+ b-jets']): 
                     bjet_mask = (n_bjets==0) if (k==0) else (n_bjets>0)
-                    final_mask = prompt_mask & bjet_mask
+                    final_mask = prompt_mask & bjet_mask & tight_mask
                     if (ak.sum(final_mask)==0): continue
                     fastmtt_masked = {k: v[(final_mask)]
                                       for k, v in fastmtt_out.items()}
@@ -387,7 +407,6 @@ class AnalysisProcessor(processor.ProcessorABC):
             
         # hadronic tau decays are not so easy
         elif (cat[2]=='t'):
-            print(ak.type(lltt))
             t1_fr_barrel = self.fake_rates['tt']['barrel']
             t1_fr_endcap = self.fake_rates['tt']['endcap']
             fr3 = np.ones(len(t1_pt)) * t1_tight_mask
@@ -425,12 +444,12 @@ class AnalysisProcessor(processor.ProcessorABC):
         
         fr1, fr2 = ak.flatten(fr1), ak.flatten(fr2)
         fr3, fr4 = ak.flatten(fr3), ak.flatten(fr4)
-        print(f'fake rates: {fr1}, {fr2}, {fr3}, {fr4}')
+        #print(f'fake rates: {fr1}, {fr2}, {fr3}, {fr4}')
         fw1 = ak.nan_to_num(fr1/(1-fr1), nan=1, posinf=1, neginf=1)
         fw2 = ak.nan_to_num(fr2/(1-fr2), nan=1, posinf=1, neginf=1)
         fw3 = ak.nan_to_num(fr3/(1-fr3), nan=1, posinf=1, neginf=1)
         fw4 = ak.nan_to_num(fr4/(1-fr4), nan=1, posinf=1, neginf=1)
-        print(f'fake weights: {fw1}, {fw2}, {fw3}, {fw4}')
+        #print(f'fake weights: {fw1}, {fw2}, {fw3}, {fw4}')
         return fw1, fw2, fw3, fw4
         
     def fill_histos(self, lltt, fastmtt_out, group, dataset,
@@ -483,7 +502,7 @@ class AnalysisProcessor(processor.ProcessorABC):
                                   category=category, bjets=bjets, 
                                   mass_type=mass_type, weight=weight[~blind_mask],
                                   mass=mass_data[~blind_mask])
-        
+            
     def apply_lepton_ID_SFs(self, w, lltt, cat, is_data=False):
         l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
         t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']

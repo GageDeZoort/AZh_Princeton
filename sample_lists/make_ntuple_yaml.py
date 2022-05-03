@@ -46,7 +46,10 @@ def make_yaml(source, year, all_samples, sample_info, target_group=None):
             outfile.write(f' - {f}\n')
     outfile.close()
 
-base_dir = f'/eos/uscms/store/group/lpcsusyhiggs/ntuples/AZh/nAODv9/{args.year}'
+
+year = args.year
+year_str = year if '2016' not in year else '2016'
+base_dir = f'/eos/uscms/store/group/lpcsusyhiggs/ntuples/AZh/nAODv9/{year_str}'
 all_samples = os.listdir(base_dir)
 print(all_samples)
 

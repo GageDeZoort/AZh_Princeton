@@ -426,8 +426,16 @@ def trigger_filter(ll, trig_obj, cat, cutflow):
     l2_match_counts = ak.sum(~ak.is_none(l2_matches, axis=1), axis=1)
     trig_match = (((l1_match_counts) > 0) | 
                   ((l2_match_counts) > 0))
-    #cutflow.fill_cutflow(np.sum(trig_match>0), 'trigger filter')
-    return trig_match
+
+    l1_match_pt = ak.max(l1_matches['ll']['l1'].pt, axis=1)
+    l2_match_pt = ak.max(l2_matches['ll']['l2'].pt, axis=1)
+    l1_match_eta = ak.max(l1_matches['ll']['l1'].eta, axis=1)
+    l2_match_eta = ak.max(l2_matches['ll']['l2'].eta, axis=1)
+    l1_match_pt = ak.fill_none(l1_match_pt, 0)
+    l2_match_pt = ak.fill_none(l2_match_pt, 0)
+    l1_match_eta = ak.fill_none(l1_match_eta, 0)
+    l2_match_eta = ak.fill_none(l2_match_eta, 0)
+    return trig_match, l1_match_pt, l1_match_eta, l2_match_pt, l2_match_eta
 
 def build_ditau_cand(lltt, cat, cutflow, OS=True):
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']

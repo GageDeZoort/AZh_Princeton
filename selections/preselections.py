@@ -101,7 +101,7 @@ def tight_muons(muons):
     return ((muons.looseId | muons.mediumId | muons.tightId) &
             (muons.pfRelIso04_all < 0.15))
 
-def get_baseline_taus(taus, cutflow, is_UL=False):
+def get_baseline_taus(taus, cutflow, is_UL=False, loose=False):
     obj = 'baseline taus'
     cutflow.fill_object(taus, 'init', obj)
 
@@ -120,6 +120,8 @@ def get_baseline_taus(taus, cutflow, is_UL=False):
     
     baseline_t = baseline_t[((baseline_t.idDeepTau2017v2p1VSjet & 1) > 0)]
     cutflow.fill_object(baseline_t, 'VSjet VVVLoose', obj)
+
+    if loose: return baseline_t
 
     baseline_t = baseline_t[((baseline_t.idDeepTau2017v2p1VSmu & 1) > 0)] # Baseline
     cutflow.fill_object(baseline_t, 'VSmu VLoose', obj)
@@ -186,8 +188,6 @@ def tight_events_denom(lltt, cat, mode=-1):
         mask = mask & ak.flatten(tight_hadronic_taus(t1, cat))
 
     return mask
-
-
 
 def get_baseline_jets(jet, cutflow, year='2018'):
     obj = 'baseline_jets'
@@ -362,8 +362,9 @@ def bjetveto(baseline_b, cutflow):
 def dR_ll(ll, cutflow):
     l1, l2 = ll['l1'], ll['l2']
     dR_mask = (l1.delta_r(l2) > 0.3)
+    ll = ll[dR_mask]
     #cutflow.fill_cutflow(np.sum(dR_mask>0), 'dR')
-    return ll.mask[dR_mask]
+    return ll[(~ak.is_none(ll, axis=1))]
 
 
 def build_Z_cand(ll, cutflow):
@@ -413,7 +414,7 @@ def trigger_filter(ll, trig_obj, cat, cutflow):
     l2dR_matches = (lltrig['ll']['l2'].delta_r(lltrig['trobj']) < 0.5)
     filter_bit = ((lltrig['trobj'].filterBits & 2) > 0)
     if cat[:2] == 'mm': filter_bit = (filter_bit | 
-                                      (lltrig['trobj'].filterBits & 8 > 0))
+                                      ((lltrig['trobj'].filterBits & 8) > 0))
 
     l1_matches = lltrig[l1dR_matches & 
                         (lltrig['ll']['l1'].pt > pt_min) & 
@@ -441,7 +442,6 @@ def build_ditau_cand(lltt, cat, cutflow, OS=True):
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
     if OS: lltt = lltt[t1.charge*t2.charge < 0]
     else: lltt = lltt[t1.charge*t2.charge > 0]
-    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
     return lltt[~ak.is_none(lltt, axis=1)]
 
 def tighten_ditau_legs(lltt, cat, cutflow):
@@ -530,7 +530,7 @@ def is_prompt_lepton(lltt, cat, mode=-1):
     if (mode=='lt'):
         return ak.flatten((t2.genPartFlav>0) & (t2.genPartFlav<6))
     if (mode=='tt'):
-        return ak.flatten((t2.genPartFlav>0) & (t2.genPartFlav<6))
+        return ak.flatten((t1.genPartFlav>0) & (t1.genPartFlav<6))
     else: return -1
 
 def is_tight_lepton(lltt, cat, mode=-1):

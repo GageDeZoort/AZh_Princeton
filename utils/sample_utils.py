@@ -68,30 +68,36 @@ def get_fileset_arrays(fileset, collection_vars=[], global_vars=[],
 def get_nevts_dict(fileset, year, high_stats=False):
     nevts_dict = {}
 
-    # loop over base files (non extension)
     for sample, files in fileset.items():
-        if '_ext' in sample: continue
         sum_of_weights = 0
         for f in files:
             if ('1of3_Electrons' not in f): continue
-            sum_of_weights += uproot.open(f)['hWeights;1'].values()[0]
+            with uproot.open(f) as tree:
+                sum_of_weights += tree['hWeights;1'].values()[0]
         nevts_dict[sample] = sum_of_weights
-
-    # loop over additional extension samples
-    for sample, files in fileset.items():
-        if '_ext' not in sample: continue
-        sum_of_weights = 0
-        for f in files:
-            if ('1of3_Electrons' not in f): continue
-            sum_of_weights += uproot.open(f)['hWeights;1'].values()[0]
-        if 'ZHToTauTau' in sample:
-            nevts_dict[sample] = sum_of_weights
-            continue
-        name_base = sample.split('_ext')[0] + f'_{year}'
-        if 'TuneCP5' in sample:
-            name_base = sample.split('TuneCP5_ext')[0] + f'_{year}'
-        nevts_dict[name_base] += sum_of_weights
-        nevts_dict[sample] = nevts_dict[name_base]
+    
+    if (year=='2018' or int(year)==2018): 
+        if 'DYJetsToLLM-50_2018' in fileset.keys():
+            nevts = (nevts_dict['DYJetsToLLM-50_2018'] + 
+                     nevts_dict['DYJetsToLLM-50_ext1_2018'])
+            nevts_dict['DYJetsToLLM-50_2018'] = nevts
+            nevts_dict['DYJetsToLLM-50_ext1_2018'] = nevts
+        if 'WZZTuneCP5_ext1_2018' in fileset.keys():
+            nevts = (nevts_dict['WZZTuneCP5_ext1_2018'] +
+                     nevts_dict['WZZ_2018'])
+            nevts_dict['WZZ_2018'] = nevts
+            nevts_dict['WZZTuneCP5_ext1_2018'] = nevts
+        if 'ZZZTuneCP5_ext1_2018' in fileset.keys():
+            nevts = (nevts_dict['ZZZTuneCP5_ext1_2018'] +
+                     nevts_dict['ZZZ_2018'])
+            nevts_dict['ZZZ_2018'] = nevts
+            nevts_dict['ZZZTuneCP5_ext1_2018'] = nevts
+        if 'WWW4F_ext1_2018' in fileset.keys():
+            nevts = (nevts_dict['WWW4F_2018'] + 
+                     nevts_dict['WWW4F_ext1_2018'])
+            nevts_dict['WWW4F_2018'] = nevts
+            nevts_dict['WWW4F_ext1_2018'] = nevts
+    
     
     return nevts_dict
 

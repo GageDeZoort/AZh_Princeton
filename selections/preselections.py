@@ -185,8 +185,7 @@ def tight_events_denom(lltt, cat, mode=-1):
     if (mode=='lt') and cat[2]=='m':
         mask = mask & ak.flatten(tight_muons(t1))
     if (mode=='tt'):
-        mask = mask & ak.flatten(tight_hadronic_taus(t1, cat))
-
+        mask = mask & ak.flatten(tight_hadronic_taus(t2, cat))
     return mask
 
 def get_baseline_jets(jet, cutflow, year='2018'):
@@ -208,7 +207,7 @@ def get_baseline_jets(jet, cutflow, year='2018'):
 def get_baseline_bjets(baseline_j, cutflow, year='2018'):
     obj = 'baseline bjets'
     delta = {'2016preVFP': 0.3093, '2016postVFP': 0.3093,
-             '2017': 0.3033, '2018': 0.2770}
+             '2017': 0.3033, '2018': 0.2783}
     baseline_b = baseline_j[(baseline_j.btagDeepFlavB > delta[year])]
     cutflow.fill_object(baseline_b, f'btagDeepB > {delta[year]}', obj)
     return baseline_b
@@ -462,7 +461,10 @@ def tighten_ditau_legs(lltt, cat, cutflow):
 def highest_LT(lltt, cutflow):
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
     LT = t1.pt + t2.pt
+    print('LT', LT)
     lltt = lltt[ak.argmax(LT, axis=1, keepdims=True)]
+    print(ak.argmax(LT, axis=1, keepdims=True))
+    print(lltt)
     #cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(lltt, axis=1))), 'ditau_cand')
     return lltt[~ak.is_none(lltt, axis=1)]
 

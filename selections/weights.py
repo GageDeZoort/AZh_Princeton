@@ -229,11 +229,12 @@ def apply_tau_ES(taus, met, SF_tool, syst='nom'):
     TES_new = np.ones(len(flat_mask), dtype=float)
     TES_new[flat_mask] = TES
     TES = ak.unflatten(TES_new, ntaus)
-    
+    print('TES', TES)
+    print('TES small', TES[TES < 0.1])
     tau_p4 = ak.zip({'pt': taus.pt, 'eta': taus.eta,
                      'phi': taus.phi, 'mass': taus.mass},
                     with_name='PtEtaPhiMLorentzVector')
-    
+    print('tau-p4', tau_p4)
     taus['pt'] = taus.pt * TES
     taus['eta'] = taus.eta * TES
     taus['phi'] = taus.phi * TES
@@ -241,7 +242,7 @@ def apply_tau_ES(taus, met, SF_tool, syst='nom'):
     tau_p4_corr = ak.zip({'pt': taus.pt, 'eta': taus.eta,
                           'phi': taus.phi, 'mass': taus.mass},
                          with_name='PtEtaPhiMLorentzVector')
-    
+    print('tau_p4_corr', tau_p4_corr)
     tau_p4_diff = tau_p4.add(tau_p4_corr.negative())
     tau_p4_diff = ak.sum(tau_p4_diff, axis=1)
     

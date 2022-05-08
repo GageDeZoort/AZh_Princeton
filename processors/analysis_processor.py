@@ -78,7 +78,7 @@ class AnalysisProcessor(processor.ProcessorABC):
         # bin variables themselves 
         pt = hist.Hist("Counts", group_axis, dataset_axis, 
                        category_axis, leg_axis, bjet_axis,
-                       hist.Bin("pt", "$p_T$ [GeV]", 60, 0, 300))
+                       hist.Bin("pt", "$p_T$ [GeV]", 30, 0, 300))
         eta = hist.Hist("Counts", group_axis, dataset_axis,
                         category_axis, leg_axis, bjet_axis,
                         hist.Bin("eta", "$\eta$", 40, -5, 5))
@@ -166,7 +166,7 @@ class AnalysisProcessor(processor.ProcessorABC):
         events = events[global_mask]
         
         # global weights: sample weight, gen weight, pileup weight
-        weights = analysis_tools.Weights(len(events))
+        weights = analysis_tools.Weights(len(events), storeIndividual=True)
         ones = np.ones(len(events), dtype=float)
         if (group=='DY' and self.high_stats): 
             njets = ak.to_numpy(events.LHE.Njets)
@@ -208,7 +208,11 @@ class AnalysisProcessor(processor.ProcessorABC):
         b_counts = ak.num(baseline_b)
         
         # selections per category 
+        weights_dict = {w: weights.partial_weight(include=[w])
+                        for w in weights._weights}
         for num, cat in self.categories.items():
+            if is_data and (cat[:2]=='ee') and ('EGamma' not in dataset): continue
+            if is_data and (cat[:2]=='mm') and ('SingleMuon' not in dataset): continue
             
             # event-level masks 
             mask = check_trigger_path(events.HLT, year, cat, self.cutflow)
@@ -223,7 +227,7 @@ class AnalysisProcessor(processor.ProcessorABC):
             met = MET[mask]
             bjet_counts = b_counts[mask]
             w = weights.weight()[mask]
-            print(cat, w[0:5])
+            w_dict = {k: v[mask] for k, v in weights_dict.items()}
             
             # build Zll candidate, check trigger filter
             l = electrons if (cat[0]=='e') else muons
@@ -239,10 +243,10 @@ class AnalysisProcessor(processor.ProcessorABC):
             trig_SFs = self.e_trig_SFs if cat[0]=='e' else self.m_trig_SFs
             if not is_data:
                 wt1 = lepton_trig_weight(w, tpt1, teta1, trig_SFs, lep=cat[0])
+                w_dict['l1_trig_weight'] = wt1
                 wt2 = lepton_trig_weight(w, tpt2, teta2, trig_SFs, lep=cat[0])
+                w_dict['l2_trig_weight'] = wt2
                 w = w * wt1 * wt2
-            
-            print('trig', w[0:5])
 
             # build di-tau candidate
             if cat[2:]=='mt':
@@ -268,12 +272,13 @@ class AnalysisProcessor(processor.ProcessorABC):
             n_bjets = bjet_counts[mask]
             w = w[mask]
             if len(lltt)==0: continue
+            print('is none', ak.sum(ak.is_none(lltt, axis=1)))
 
             # sync output
-            self.output["cat"] += self.accumulate(np.array(len(events_cat)*[cat]), flatten=False)
-            self.output["evt"] += self.accumulate(events_cat.event, flatten=False)
-            self.output["run"] += self.accumulate(events_cat.run, flatten=False)
-            self.output["lumi"] += self.accumulate(events_cat.luminosityBlock, flatten=False)
+            #self.output["cat"] += self.accumulate(np.array(len(events_cat)*[cat]), flatten=False)
+            #self.output["evt"] += self.accumulate(events_cat.event, flatten=False)
+            #self.output["run"] += self.accumulate(events_cat.run, flatten=False)
+            #self.output["lumi"] += self.accumulate(events_cat.luminosityBlock, flatten=False)
 
             # determine which legs passed tight selections
             tight_masks = tight_events(lltt, cat)
@@ -340,6 +345,16 @@ class AnalysisProcessor(processor.ProcessorABC):
                         
             # if MC, fill as normal
             if not is_data:
+                events_cat = events_cat[prompt_mask & tight_mask]
+                self.output["cat"] += self.accumulate(np.array(len(events_cat)*[cat]), 
+                                                      flatten=False)
+                self.output["evt"] += self.accumulate(events_cat.event, 
+                                                      flatten=False)
+                self.output["run"] += self.accumulate(events_cat.run, 
+                                                      flatten=False)
+                self.output["lumi"] += self.accumulate(events_cat.luminosityBlock,
+                                                       flatten=False)
+
                 for k, bjet_label in enumerate(['0 b-jets', '$1+ b-jets']): 
                     bjet_mask = (n_bjets==0) if (k==0) else (n_bjets>0)
                     final_mask = prompt_mask & bjet_mask & tight_mask
@@ -362,7 +377,7 @@ class AnalysisProcessor(processor.ProcessorABC):
         t1_barrel = (abs(lltt['tt']['t1'].eta) < 1.479)
         t2_barrel = (abs(lltt['tt']['t2'].eta) < 1.479)
         l1l2_fr_barrel = self.fake_rates[cat[:2]]['barrel']
-        l1l2_fr_endcap = self.fake_rates[cat[:2]]['barrel']
+        l1l2_fr_endcap = self.fake_rates[cat[:2]]['endcap']
         
         # fake rate regions
         l1_fake_barrel = (l1_barrel & ~l1_tight_mask)
@@ -506,7 +521,9 @@ class AnalysisProcessor(processor.ProcessorABC):
     def apply_lepton_ID_SFs(self, w, lltt, cat, is_data=False):
         l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
         t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
-        
+
+        # tau_ID_weight(taus, SF_tool, cat, is_data=False, syst='nom', tight=True)
+
         # e/mu scale factors
         if cat[:2] == 'ee':
             l1_w = lepton_ID_weight(l1, 'e', self.eleID_SFs, is_data)
@@ -521,13 +538,13 @@ class AnalysisProcessor(processor.ProcessorABC):
             t2_w = lepton_ID_weight(t2, 'm', self.muID_SFs, is_data)
         elif cat[2:] == 'et':
             t1_w = lepton_ID_weight(t1, 'e', self.eleID_SFs, is_data)
-            t2_w = tau_ID_weight(t2, self.tauID_SFs, is_data)
+            t2_w = tau_ID_weight(t2, self.tauID_SFs, cat)
         elif cat[2:] == 'mt':
             t1_w = lepton_ID_weight(t1, 'm', self.muID_SFs, is_data)
-            t2_w = tau_ID_weight(t2, self.tauID_SFs, is_data)
+            t2_w = tau_ID_weight(t2, self.tauID_SFs, cat)
         elif cat[2:] == 'tt':
-            t1_w = tau_ID_weight(t1, self.tauID_SFs, is_data)
-            t2_w = tau_ID_weight(t2, self.tauID_SFs, is_data)
+            t1_w = tau_ID_weight(t1, self.tauID_SFs, cat)
+            t2_w = tau_ID_weight(t2, self.tauID_SFs, cat)
             
         # apply ID scale factors
         return w * l1_w * l2_w * t1_w * t2_w

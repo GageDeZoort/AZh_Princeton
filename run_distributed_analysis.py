@@ -93,11 +93,11 @@ logging.info(f'Using tID_SFs:\n{tIDs.keys()}')
 
 # load up electron / muon trigger SFs
 e_trig_base = f'corrections/electron_trigger/UL_{year}'
-e_trig_file = join(e_trig_base, 'Electron_RunUL2018_Ele35.root')
+e_trig_file = join(e_trig_base, f'Electron_RunUL{year}_Ele35.root')
 e_trig_SFs = get_electron_trigger_SFs(e_trig_file)
 
 m_trig_base = f'corrections/muon_trigger/UL_{year}'
-m_trig_file = join(m_trig_base, 'Muon_RunUL2018_IsoMu27.root')
+m_trig_file = join(m_trig_base, f'Muon_RunUL{year}_IsoMu27.root')
 m_trig_SFs = get_muon_trigger_SFs(m_trig_file)
 
 # build fileset and corresponding sample info
@@ -141,11 +141,8 @@ if use_data:
 
 if args.test_mode: fileset = {k: v[:1] for k, v in fileset.items()}
 if not args.high_stats: fileset = {k: v for k, v in fileset.items()
-                                   if ((('_ext' not in k) or ('ZHToTauTau' in k))
-                                       and ('DY1' not in k)
-                                       and ('DY2' not in k) 
-                                       and ('DY3' not in k)
-                                       and ('DY4' not in k))}
+                                   if (('DY1' not in k) and ('DY2' not in k) and 
+                                       ('DY3' not in k) and ('DY4' not in k))}
 
 logging.info(f'running on\n {fileset.keys()}')
 

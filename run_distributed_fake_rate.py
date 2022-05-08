@@ -90,11 +90,11 @@ logging.info(f'Using tID_SFs:\n{tIDs.keys()}')
 
 # load up electron / muon trigger SFs
 e_trig_base = f'corrections/electron_trigger/UL_{year}'
-e_trig_file = join(e_trig_base, 'Electron_RunUL2018_Ele35.root')
+e_trig_file = join(e_trig_base, f'Electron_RunUL{year}_Ele35.root')
 e_trig_SFs = get_electron_trigger_SFs(e_trig_file)
 
 m_trig_base = f'corrections/muon_trigger/UL_{year}'
-m_trig_file = join(m_trig_base, 'Muon_RunUL2018_IsoMu27.root')
+m_trig_file = join(m_trig_base, f'Muon_RunUL{year}_IsoMu27.root')
 m_trig_SFs = get_muon_trigger_SFs(m_trig_file)
 
 # load sample info and filesets
@@ -126,21 +126,20 @@ if use_data:
 
 if args.test_mode: 
     fileset = {k: v[:1] for k, v in fileset.items()}
-if not args.high_stats: 
-    fileset = {k: v for k, v in fileset.items()
-               if (("_ext" not in k) and ('DY1' not in k) and
-                   ('DY2' not in k) and ('DY3' not in k) and
-                   ('DY4' not in k))}
+#if not args.high_stats: 
+#    fileset = {k: v for k, v in fileset.items()
+#               if (('DY1' not in k) and ('DY2' not in k) and 
+#                   ('DY3' not in k) and ('DY4' not in k))}
 
 logging.info(f'running on\n {fileset.keys()}')
 
 # extract the sum_of_weights from the ntuples
 nevts_dict, dyjets_weights = None, None
 if use_MC:
-    nevts_dict = get_nevts_dict(fileset, year)
+    nevts_dict = get_nevts_dict(fileset, str(year))
 
 # extract the DY stitching weights
-if group=='DY':
+if args.high_stats and not use_data:
     dyjets_weights = dyjets_stitch_weights(sample_info, nevts_dict, year)
 
 logging.info(f'Successfully built sum_of_weights dict:\n {nevts_dict}')
@@ -185,6 +184,8 @@ proc_instance = SS4lFakeRateProcessor(sample_info=sample_info,
                                       eleID_SFs=eIDs,
                                       muID_SFs=mIDs,
                                       tauID_SFs=tIDs,
+                                      e_trig_SFs=e_trig_SFs,
+                                      m_trig_SFs=m_trig_SFs,
                                       dyjets_weights=dyjets_weights)
 
 hists, metrics = processor.run_uproot_job(

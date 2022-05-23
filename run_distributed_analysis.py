@@ -38,7 +38,7 @@ def parse_args():
     add_arg('-v', '--verbose', action='store_true')
     add_arg('--show-config', action='store_true')
     add_arg('--interactive', action='store_true')
-    add_arg('--min-workers', type=int, default=100)
+    add_arg('--min-workers', type=int, default=25)
     add_arg('--max-workers', type=int, default=300)
     return parser.parse_args()
 
@@ -62,7 +62,7 @@ indir = "sample_lists/sample_yamls"
 golden_json_dir = 'sample_lists/data_certification'
 golden_jsons = {'2018': join(golden_json_dir, 'data_cert_2018.json'),
                 '2017': join(golden_json_dir, 'data_cert_2017.json'),
-                '2016post': join(golden_json_dir, 'data_cert_2016.json'),
+                '2016postVFP': join(golden_json_dir, 'data_cert_2016.json'),
                 '2016preVFP': join(golden_json_dir, 'data_cert_2016.json')}
 lumi_masks = {year: LumiMask(golden_json) 
               for year, golden_json in golden_jsons.items()}
@@ -150,9 +150,6 @@ logging.info(f'running on\n {fileset.keys()}')
 nevts_dict, dyjets_weights = None, None
 if use_MC:
     nevts_dict = get_nevts_dict(fileset, year)
-
-# extract the DY stitching weights
-if group=='DY':
     dyjets_weights = dyjets_stitch_weights(sample_info, nevts_dict, year)
 
 logging.info(f'Successfully built sum_of_weights dict:\n {nevts_dict}')
@@ -164,9 +161,7 @@ infiles = ['processors/analysis_processor.py',
            'selections/preselections.py',
            'selections/weights.py',
            'utils/cutflow.py', 
-           'pileup/pileup_utils.py',
-           f'sample_lists/MC_{year}.csv',
-           f'sample_lists/data_{year}.csv']
+           'pileup/pileup_utils.py']
 
 cluster = LPCCondorCluster(ship_env=False, transfer_input_files=infiles,
                            scheduler_options={"dashboard_address": ":8787"})
@@ -206,7 +201,7 @@ hists, metrics = processor.run_uproot_job(
    executor=processor.dask_executor,
    executor_args=exe_args,
    #maxchunks=20,
-   chunksize=75000
+   chunksize=100000
 )
 
 # measure, report summary statistics

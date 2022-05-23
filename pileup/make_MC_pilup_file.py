@@ -60,7 +60,7 @@ for f, l in fileset.items(): print(f, len(l), '\n')
 # start timer, initiate cluster, ship over files
 tic = time.time()
 infiles = ['../utils/sample_utils.py', 'pileup_processor.py',
-           f'../sample_lists/MC_{year}.csv', 'pileup_utils.py']
+           f'../sample_lists/{source}_{year}.csv', 'pileup_utils.py']
 
 cluster = LPCCondorCluster(ship_env=False, transfer_input_files=infiles,
                            scheduler_options={"dashboard_address": ":8787"})

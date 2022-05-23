@@ -76,39 +76,40 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         pt_axis = hist.Cat("pt_bin", "")
         eta_axis = hist.Cat("eta_bin", "")
         dm_axis = hist.Cat("decay_mode", "")
+        sign_axis = hist.Cat("sign", "")
         weight_axis = hist.Cat("weight_type", "")
-        where_axis = hist.cat("where", "")
+        where_axis = hist.Cat("where", "")
         
         # bin variables themselves
         pt_hist = hist.Hist("Counts", group_axis, dataset_axis,
                             category_axis, 
                             prompt_axis, numerator_axis,
-                            pt_axis, eta_axis, dm_axis,
+                            pt_axis, eta_axis, dm_axis, sign_axis,
                             hist.Bin("pt", "$p_T$ [GeV]", 20, 0, 200))
         eta_hist = hist.Hist("Counts", group_axis, dataset_axis,
                              category_axis, prompt_axis,
-                             numerator_axis,
+                             numerator_axis, sign_axis,
                              hist.Bin("eta", "$\eta$", 25, -5, 5))
         phi_hist = hist.Hist("Counts", group_axis, dataset_axis,
                              category_axis, prompt_axis,
-                             numerator_axis,
+                             numerator_axis, sign_axis,
                              hist.Bin("phi", "$\phi$", 25, -np.pi, np.pi))
         mass_hist = hist.Hist("Counts", group_axis, dataset_axis,
                               category_axis, prompt_axis,
-                              numerator_axis, 
+                              numerator_axis, sign_axis,
                               hist.Bin("mass", "$m$", 25, 0, 20))
         mll_hist = hist.Hist("Counts", group_axis, prompt_axis,
                              dataset_axis, category_axis,
-                             numerator_axis, 
+                             numerator_axis, sign_axis,
                              hist.Bin("mll", "$m_{ll}$", 10, 60, 120))
         mtt_hist = hist.Hist("Counts", group_axis, prompt_axis,
                              dataset_axis, category_axis,
-                             numerator_axis, 
+                             numerator_axis, sign_axis,
                              hist.Bin("mtt", "$m_{tt}$", 40, 0, 200))
         mT_hist = hist.Hist("Counts", group_axis, prompt_axis,
                             dataset_axis, category_axis,
                             numerator_axis, pt_axis, eta_axis,
-                            dm_axis,
+                            dm_axis, sign_axis,
                             hist.Bin("mT", "$m_T$", 20, 0, 200))
         mll_test_hist = hist.Hist("Counts", group_axis, dataset_axis, 
                                   category_axis, where_axis,
@@ -143,6 +144,11 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
             flat = ak.to_numpy(a)
         return processor.column_accumulator(flat)
 
+    def apply_mask(self, data, mask):
+        masked = data.mask[mask]
+        masked = ak.fill_none(masked, [], axis=0)
+        return masked[~ak.is_none(masked, axis=1)]
+
     def process(self, events):
         self.output = self.accumulator.identity()
         print('...processing', events.metadata['dataset'])
@@ -164,7 +170,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         if self.nevts_dict is not None:
             nevts = self.nevts_dict[dataset]
         elif not is_data: print('WARNING: may be using wrong sum_of_weights!')
-
+        
         # weight by the data-MC luminosity ratio
         sample_weight = lumi[year] * xsec / nevts
         if is_data: sample_weight=1
@@ -190,9 +196,8 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         if (self.pileup_tables is not None) and not is_data:
             gen_weight = ak.to_numpy(events.genWeight)
             #gen_weight[gen_weight < 0] = 0
-            gen_weight = abs(gen_weight)
+            #gen_weight = abs(gen_weight)
             weights.add('gen_weight', gen_weight)
-            print('gen weights', events.genWeight)
             pu_weights = get_pileup_weights(events.Pileup.nTrueInt,
                                             self.pileup_tables[dataset],
                                             self.pileup_bins)
@@ -208,7 +213,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         baseline_m = get_baseline_muons(events.Muon, self.cutflow)
         loose = True if 't' in self.mode else False
         baseline_t = get_baseline_taus(events.Tau, self.cutflow, 
-                                       is_UL=is_UL, loose=True)
+                                       is_UL=is_UL, loose=loose)
         
         # apply energy scale corrections to hadronic taus (/fakes)
         MET = events.MET
@@ -222,168 +227,112 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
 
         # loop over each category
         mode = self.mode
-        weights_dict = {w: weights.partial_weight(include=[w])
-                        for w in weights._weights}
-        print(weights_dict)
-        for cat in self.categories: 
-            if is_data and (cat[:2]=='ee') and ('EGamma' not in dataset): continue
-            if is_data and (cat[:2]=='mm') and ('SingleMuon' not in dataset): continue
-            
-            # build event-level mask 
-            mask = check_trigger_path(events.HLT, year, cat, self.cutflow)
-            mask = mask & lepton_count_veto(e_counts, m_counts,
-                                            cat, self.cutflow)
-                    
-            # use only triggered / lepton count veto objects
-            events_cat = events[mask]
-            electrons = baseline_e[mask]
-            muons = baseline_m[mask]
-            hadronic_taus = baseline_t[mask]
-            w = weights.weight()[mask]
-            w_dict = {k: v[mask] for k, v in weights_dict.items()}
-            met = MET[mask]
+               
+        # build ll pairs
+        ll_pairs, ll_weights = {}, {}
+        for cat in ['ee', 'mm']:
+            if (cat[:2]=='ee') and ('_Electrons' not in filename): continue
+            if (cat[:2]=='mm') and ('_Muons' not in filename): continue
 
-            # build Zll candidate, check trigger filter
-            l = electrons if (cat[0]=='e') else muons
+            mask = check_trigger_path(events.HLT, year, cat, self.cutflow)
+            l = baseline_e if (cat=='ee') else baseline_m
             ll = ak.combinations(l, 2, axis=1, fields=['l1', 'l2'])
             ll = dR_ll(ll, self.cutflow)
             ll = build_Z_cand(ll, self.cutflow)
             ll = closest_to_Z_mass(ll)
             mask, tpt1, teta1, tpt2, teta2 = trigger_filter(ll,
-                                                            events_cat.TrigObj,
+                                                            events.TrigObj,
                                                             cat, self.cutflow)
+            ll = ak.fill_none(ll.mask[mask], [], axis=0)
+            ll_pairs[cat] = ll
 
-            # apply trigger scale factors
-            trig_SFs = self.e_trig_SFs if cat[0]=='e' else self.m_trig_SFs
+            trig_SFs = self.e_trig_SFs if cat=='ee' else self.m_trig_SFs
             if not is_data:
-                wt1 = lepton_trig_weight(w, tpt1, teta1, trig_SFs, lep=cat[0])
-                w_dict['l1 trig weight'] = wt1
-                wt2 = lepton_trig_weight(w, tpt2, teta2, trig_SFs, lep=cat[0])
-                w_dict['l2 trig weight'] = wt2
-                w = w * wt1 * wt2
-        
+                weight = np.ones(len(events), dtype=float)
+                wt1 = lepton_trig_weight(weight, tpt1, teta1, trig_SFs, lep=cat[0])
+                wt2 = lepton_trig_weight(weight, tpt2, teta2, trig_SFs, lep=cat[0])
+                weights.add('l1_trig_weight', wt1)
+                weights.add('l2_trig_weight', wt2)
+
+            # fill test histogram
             mll = (ll['l1'] + ll['l2']).mass
-            mll_mask = (ak.num(mll, axis=1) > 0)
+            mask = (ak.num(mll, axis=1)>0)
             self.output['mll_test'].fill(group=group, dataset=dataset,
-                                         category=cat, where='after Z->ll selection',
-                                         mll=ak.flatten(mll),
-                                         weight=w[mll_mask])
-                
-            # build di-tau candidate
-            if cat[2:]=='mt':
-                tt = ak.cartesian({'t1': muons, 't2': hadronic_taus}, axis=1)
-            elif cat[2:]=='et':
-                tt = ak.cartesian({'t1': electrons, 't2': hadronic_taus}, axis=1)
-            elif cat[2:]=='em':
-                tt = ak.cartesian({'t1': electrons, 't2': muons}, axis=1)
-            elif cat[2:]=='tt':
-                tt = ak.combinations(hadronic_taus, 2, axis=1, fields=['t1', 't2'])
-            
+                                         category=cat, where='Z->ll Only',
+                                         mll=ak.flatten(mll[mask]),
+                                         weight=weights.weight()[mask])
+
+        # add ditau candidates
+        candidates, candidate_masks = {}, {}
+        for cat in self.categories:
+            if (cat[:2]=='ee') and ('_Electrons' not in filename): continue
+            if (cat[:2]=='mm') and ('_Muons' not in filename): continue
+            #mask = lepton_count_veto(e_counts, m_counts, cat, self.cutflow)
+
             # build 4l final state
-            lltt = ak.cartesian({'ll': ll, 'tt': tt}, axis=1)
+            tt = get_tt(baseline_e, baseline_m, baseline_t, cat)
+            lltt = ak.cartesian({'ll': ll_pairs[cat[:2]], 'tt': tt}, axis=1)
             lltt = dR_lltt(lltt, cat, self.cutflow)
-            lltt = build_ditau_cand(lltt, cat, self.cutflow, OS=False)
             lltt = highest_LT(lltt, self.cutflow)
+            #lltt = ak.fill_none(lltt.mask[mask], [], axis=0)
             
-            # apply additional transverse mass / Higgs LT cut
-            #if (mode=='e') or (mode=='m'):
-            #    lltt = transverse_mass_cut(lltt, met, thld=40, leg='t1')
-            #if (mode=='tt'):
-            #    lltt = lltt[(lltt['tt']['t1'].pt + lltt['tt']['t2'].pt) > 50]
-            #    lltt = lltt[(~ak.is_none(lltt, axis=1))]
+            # apply fake weights to estimate reducible background
+            tight_base_mask = is_tight_base(lltt, cat, mode=mode)
+            lltt = self.apply_mask(lltt, tight_base_mask)
+            if len(ak.flatten(lltt))==0: continue
 
-            mask = mask & (ak.num(lltt, axis=1) > 0)
-            
-            # apply event-level mask, initialize weights for each event
-            lltt = lltt[mask]
-            w = w[mask]
-            w_dict = {k: v[mask] for k, v in w_dict.items()}
-            met = met[mask]
-            events_cat = events_cat[mask]
-            evt = events_cat.event
-            if len(lltt)==0: continue
-            for k, v in w_dict.items():
-                self.output['weight'].fill(group=group, dataset=dataset,
-                                           category=cat, weight_type=k,
-                                           w=v)
-        
-            mll = (lltt['ll']['l1'] + ll['ll']['l2']).mass
-            self.output['mll_test'].fill(group=group, dataset=dataset,
-                                         category=cat, where='after h->tt selection',
-                                         mll=ak.flatten(mll),
-                                         weight=w)
-
-
-            # apply tight selections to non-fake legs
-            #denom_mask = np.ones(len(lltt), dtype=bool)
-            denom_mask = tight_events_denom(lltt, cat, mode=mode)
-            num_mask = denom_mask & is_tight_lepton(lltt, cat, mode)
-
-            if not is_data:
-                # check that lepton in question is prompt
-                prompt_lepton = is_prompt_lepton(lltt, cat, mode)
-    
-                # categorize accordingly
-                denom_prompt_mask = denom_mask & prompt_lepton
-                denom_fake_mask = denom_mask & ~prompt_lepton
-                num_prompt_mask = num_mask & prompt_lepton
-                num_fake_mask = num_mask & ~prompt_lepton
-                
-                final_states = {('denominator', 
-                                 'prompt'): (lltt[denom_prompt_mask],
-                                             met[denom_prompt_mask],
-                                             w[denom_prompt_mask],
-                                             evt[denom_prompt_mask]),
-                                ('denominator', 
-                                 'fake'): (lltt[denom_fake_mask],
-                                           met[denom_fake_mask],
-                                           w[denom_fake_mask],
-                                           evt[denom_fake_mask]),
-                                ('numerator', 
-                                 'prompt'): (lltt[num_prompt_mask],
-                                             met[num_prompt_mask],
-                                             w[num_prompt_mask],
-                                             evt[num_prompt_mask]),
-                                ('numerator', 
-                                 'fake'): (lltt[num_fake_mask],
-                                           met[num_fake_mask],
-                                           w[num_fake_mask],
-                                           evt[num_fake_mask])}
+            if is_data:
+                tight_lep_mask = is_tight_lepton(lltt, cat, mode=mode)
+                data_denom = lltt
+                data_num = self.apply_mask(lltt, tight_lep_mask)
+                candidates[cat + '_data_denominator'] = data_denom
+                candidates[cat + '_data_numerator'] = data_num
             else:
-                final_states = {('denominator',
-                                 'data'): (lltt[denom_mask],
-                                           met[denom_mask],
-                                           w[denom_mask],
-                                           evt[denom_mask]),
-                                ('numerator',
-                                 'data'): (lltt[num_mask],
-                                           met[num_mask],
-                                           w[num_mask],
-                                           evt[num_mask])}
+                #prompt_base_mask = is_prompt_base(lltt, cat, mode=mode)
+                #lltt = self.apply_mask(lltt, prompt_base_mask)
+                #if len(ak.flatten(lltt))==0: continue
+                tight_lep_mask = is_tight_lepton(lltt, cat, mode=mode)
+                prompt_lep_mask = is_prompt_lepton(lltt, cat, mode=mode)
+                cands_pd = self.apply_mask(lltt, prompt_lep_mask)
+                cands_fd = self.apply_mask(lltt, ~prompt_lep_mask)
+                cands_pn = self.apply_mask(lltt, prompt_lep_mask & tight_lep_mask) 
+                cands_fn = self.apply_mask(lltt, ~prompt_lep_mask & tight_lep_mask)
+                candidates[cat + '_prompt_denominator'] = cands_pd
+                candidates[cat + '_fake_denominator'] = cands_fd
+                candidates[cat + '_prompt_numerator'] = cands_pn
+                candidates[cat + '_fake_numerator'] = cands_fn
 
-            # fill denominator/numerator regions with fake/prompt events
-            for label, data in final_states.items():
-                data, met, weight, evt = data[0], data[1], data[2], data[3]
-                print(f'{mode} {cat} {label} {data}')
-                if (len(data)==0): continue
-                self.output["cat"] += self.accumulate(np.array(len(evt)*[cat]), 
-                                                      flatten=False)
-                self.output["evt"] += self.accumulate(evt, flatten=False)
-                self.output['tight'] += self.accumulate(np.ones(len(evt)) *
-                                                        (label[0]=='numerator'))
-                if not is_data: 
-                    tight = True if label[0]=='numerator' else False
-                    weight = self.apply_SFs(data, weight, cat, 
+        #candidate_counts = [ak.num(lltt) for cat, lltt in candidates.items()]
+        #counts_mask = (ak.sum(candidate_counts, axis=0)==1)
+        for cat, cands in candidates.items():
+            mask = (ak.num(cands, axis=1)>0)
+            if 'numerator' in cat:
+                mask = mask & lepton_count_veto(e_counts, m_counts, 
+                                                cat.split('_')[0], self.cutflow)
+            for j, sign in enumerate(['OS', 'SS']):
+                t1, t2 = cands['tt']['t1'], cands['tt']['t2']
+                sign_mask = (t1.charge * t2.charge < 0)
+                if (j==1): sign_mask = (t1.charge * t2.charge > 0)
+                #count_mask = (ak.num(cands, axis=1)>0)
+                lltt = cands[mask][ak.flatten(sign_mask[mask])]
+                met = MET[mask][ak.flatten(sign_mask[mask])]
+                weight = weights.weight()[mask][ak.flatten(sign_mask[mask])]
+                prompt_label = cat.split('_')[1]
+                num_label = cat.split('_')[-1]
+                if not is_data:
+                    tight = True if num_label=='numerator' else False
+                    weight = self.apply_SFs(lltt, weight, cat.split('_')[0],
                                             tight=tight, mode=mode)
-                num_label, prompt_label = label[0], label[1]
-                self.fill_histos(data, met, weight, prompt_label, num_label,
-                                 group=group, dataset=dataset, 
-                                 category=cat, mode=mode)
-                
+
+                print('filling', prompt_label, num_label, lltt, weight)
+                self.fill_histos(lltt, met, weight, prompt_label, 
+                                 num_label, group=group, dataset=dataset, 
+                                 category=cat, sign=sign, mode=mode)
+        
         return self.output
 
     def fill_histos(self, lltt, met, weight, prompt, numerator,
-                    group, dataset, category, mode):
+                    group, dataset, category, sign, mode):
         l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
         t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
 
@@ -391,10 +340,10 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         mtt = ak.flatten((t1 + t2).mass)
         self.output['mll'].fill(group=group, dataset=dataset,
                                 category=category, numerator=numerator,
-                                prompt=prompt, mll=mll, weight=weight)
+                                prompt=prompt, sign=sign, mll=mll, weight=weight)
         self.output['mtt'].fill(group=group, dataset=dataset,
                                 category=category, numerator=numerator,
-                                prompt=prompt, mtt=mtt, weight=weight)
+                                prompt=prompt, sign=sign, mtt=mtt, weight=weight)
         
         for pt_range in [(10, 20), (20, 30), (30, 40), (40, 60), (60, 10**3)]:
             pt_bin = f"${pt_range[0]}<p_T<{pt_range[1]}$ GeV"
@@ -412,6 +361,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                                        prompt=prompt, pt_bin=pt_bin,
                                        eta_bin=eta_barrel_bin,
                                        decay_mode='None',
+                                       sign=sign,
                                        weight=weight[barrel_mask],
                                        mT=ak.flatten(mT[barrel_mask]))
                 self.output['mT'].fill(group=group, dataset=dataset,
@@ -420,6 +370,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                                        prompt=prompt, pt_bin=pt_bin,
                                        eta_bin=eta_endcap_bin, 
                                        decay_mode='None',
+                                       sign=sign,
                                        weight=weight[endcap_mask],
                                        mT=ak.flatten(mT[endcap_mask]))
                 self.output['pt'].fill(group=group, dataset=dataset,
@@ -428,6 +379,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                                        pt_bin=pt_bin, 
                                        eta_bin=eta_barrel_bin,
                                        decay_mode='None',
+                                       sign=sign,
                                        weight=weight[barrel_mask],
                                        pt=ak.flatten(tau.pt[barrel_mask]))
                 self.output['pt'].fill(group=group, dataset=dataset,
@@ -435,6 +387,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                                        numerator=numerator, prompt=prompt,
                                        pt_bin=pt_bin, eta_bin=eta_endcap_bin,
                                        decay_mode='None',
+                                       sign=sign,
                                        weight=weight[endcap_mask],
                                        pt=ak.flatten(tau.pt[endcap_mask]))
                 
@@ -449,6 +402,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                                            prompt=prompt, pt_bin=pt_bin,
                                            eta_bin=eta_barrel_bin,
                                            decay_mode=str(dm),
+                                           sign=sign,
                                            weight=weight[dm_barrel_mask],
                                            mT=ak.flatten(mT[dm_barrel_mask]))
                     self.output['mT'].fill(group=group, dataset=dataset,
@@ -457,6 +411,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                                            prompt=prompt, pt_bin=pt_bin,
                                            eta_bin=eta_endcap_bin,
                                            decay_mode=str(dm),
+                                           sign=sign,
                                            weight=weight[dm_endcap_mask],
                                            mT=ak.flatten(mT[dm_endcap_mask]))
                     self.output['pt'].fill(group=group, dataset=dataset,
@@ -465,6 +420,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                                            prompt=prompt, pt_bin=pt_bin, 
                                            eta_bin=eta_barrel_bin,
                                            decay_mode=str(dm),
+                                           sign=sign,
                                            weight=weight[dm_barrel_mask],
                                            pt=ak.flatten(tau.pt[dm_barrel_mask]))
                     self.output['pt'].fill(group=group, dataset=dataset,
@@ -473,41 +429,56 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
                                            prompt=prompt, pt_bin=pt_bin, 
                                            eta_bin=eta_endcap_bin,
                                            decay_mode=str(dm),
+                                           sign=sign,
                                            weight=weight[dm_endcap_mask], 
                                            pt=ak.flatten(tau.pt[dm_endcap_mask]))
                 
     def apply_SFs(self, lltt, w, cat, tight, mode):
         l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
         t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
-        print('apply_SFs', cat, tight, mode)
-
+                
+        # e/mu scale factors
+        if cat[:2] == 'ee':
+            l1_w = lepton_ID_weight(l1, 'e', self.eleID_SFs)
+            l2_w = lepton_ID_weight(l2, 'e', self.eleID_SFs)
+        elif cat[:2] == 'mm':
+            l1_w = lepton_ID_weight(l1, 'm', self.muID_SFs)
+            l2_w = lepton_ID_weight(l2, 'm', self.muID_SFs)        
+        
         if cat[2:] == 'et':
-            t2_w = tau_ID_weight(t2, self.tauID_SFs, cat, tight=False)
-            if not tight:
-                return w * t2_w
-            elif (mode=='e'): 
-                t1_w = lepton_ID_weight(t1, 'e', self.eleID_SFs)
+            t1_w = lepton_ID_weight(t1, 'e', self.eleID_SFs)
+            t2_w = tau_ID_weight(t2, self.tauID_SFs, cat, tight=True)
+            if (mode=='e') and tight:
                 return w * t1_w * t2_w
-            elif (mode=='lt'): 
-                t2_w = tau_ID_weight(t2, self.tauID_SFs, cat, tight=True)
+            elif (mode=='e') and not tight:
                 return w * t2_w
+            if (mode=='lt') and tight: 
+                return w * t1_w * t2_w
+            elif (mode=='lt') and not tight:
+                t2_w = tau_ID_weight(t2, self.tauID_SFs, cat, tight=False)
+                return w * t1_w  * t2_w
 
         elif cat[2:] == 'mt':
-            t2_w = tau_ID_weight(t2, self.tauID_SFs, cat, tight=False)
-            if not tight:
-                return w * t2_w
-            elif (mode=='m'): 
-                t1_w = lepton_ID_weight(t1, 'm', self.muID_SFs)
+            t1_w = lepton_ID_weight(t1, 'm', self.muID_SFs)
+            t2_w = tau_ID_weight(t2, self.tauID_SFs, cat, tight=True)
+            if (mode=='m') and tight:
                 return w * t1_w * t2_w
-            elif (mode=='lt'): 
-                t2_w = tau_ID_weight(t2, self.tauID_SFs, cat, tight=True)
+            elif (mode=='m') and not tight:
                 return w * t2_w
+            if (mode=='lt') and tight:
+                return w * t1_w * t2_w
+            elif (mode=='lt') and not tight:
+                t2_w = tau_ID_weight(t2, self.tauID_SFs, cat, tight=False)
+                return w * t1_w * t2_w
                 
         elif cat[2:] == 'tt':
-            t1_w = tau_ID_weight(t1, self.tauID_SFs, cat, tight=False)
+            t1_w = tau_ID_weight(t1, self.tauID_SFs, cat, tight=True)
             t2_w = tau_ID_weight(t2, self.tauID_SFs, cat, tight=True)
-            return w * t1_w * t2_w
-
+            if tight: 
+                return w * t1_w * t2_w
+            else:
+                t1_w = tau_ID_weight(t1, self.tauID_SFs, cat, tight=False)
+                return w * t1_w * t2_w
             
     def postprocess(self, accumulator):
         return accumulator

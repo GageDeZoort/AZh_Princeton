@@ -153,9 +153,8 @@ infiles = ['processors/fake_rate_processors.py',
            'selections/SS_4l_selections.py',
            'selections/weights.py',
            'utils/cutflow.py', 'utils/print_events.py',
-           'pileup/pileup_utils.py',
-           f'sample_lists/MC_{year}.csv',
-           f'sample_lists/data_{year}.csv']
+           'pileup/pileup_utils.py']
+
 cluster = LPCCondorCluster(ship_env=False, transfer_input_files=infiles,
                            scheduler_options={"dashboard_address": ":8787"})
 

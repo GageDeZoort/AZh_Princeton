@@ -76,7 +76,7 @@ def get_nevts_dict(fileset, year, high_stats=False):
                 sum_of_weights += tree['hWeights;1'].values()[0]
         nevts_dict[sample] = sum_of_weights
     
-    if (year=='2018' or int(year)==2018): 
+    if (year=='2018'): 
         if 'DYJetsToLLM-50_2018' in fileset.keys():
             nevts = (nevts_dict['DYJetsToLLM-50_2018'] + 
                      nevts_dict['DYJetsToLLM-50_ext1_2018'])
@@ -98,9 +98,51 @@ def get_nevts_dict(fileset, year, high_stats=False):
             nevts_dict['WWW4F_2018'] = nevts
             nevts_dict['WWW4F_ext1_2018'] = nevts
     
-    
-    return nevts_dict
+    if (year=='2017'):
+        if 'DYJetsToLLM-50_2017' in fileset.keys():
+            print('fixing DYjets')
+            nevts = (nevts_dict['DYJetsToLLM-50_2017'] + 
+                     nevts_dict['DYJetsToLLM-50_ext1_2017'])
+            nevts_dict['DYJetsToLLM-50_2017'] = nevts
+            nevts_dict['DYJetsToLLM-50_ext1_2017'] = nevts
+        if 'WWW4F_ext1_2017' in fileset.keys():
+            print('fixing WWW4F')
+            nevts = (nevts_dict['WWW4F_2017'] + 
+                     nevts_dict['WWW4F_ext1_2017'])
+            nevts_dict['WWW4F_2017'] = nevts
+            nevts_dict['WWW4F_ext1_2017'] = nevts
+        if 'ZHToTauTauM125_2017' in fileset.keys():
+            print('fixing ZHToTauTau')
+            nevts = (nevts_dict['ZHToTauTauM125_2017'] +
+                     nevts_dict['ZHToTauTauM125_ext1_2017'])
+            nevts_dict['ZHToTauTauM125_2017'] = nevts
+            nevts_dict['ZHToTauTauM125_ext1_2017'] = nevts
 
+    if (year=='2016postVFP'):
+        if 'WWW4F_ext1_postVFP_2016postVFP' in fileset.keys():
+            nevts = (nevts_dict['WWW4F_postVFP_2016postVFP'] + 
+                     nevts_dict['WWW4F_ext1_postVFP_2016postVFP'])
+            nevts_dict['WWW4F_postVFP_2016postVFP'] = nevts
+            nevts_dict['WWW4F_ext1_postVFP_2016postVFP'] = nevts
+        if 'ZZZTuneCP5_postVFP_2016postVFP' in fileset.keys():
+            nevts = (nevts_dict['ZZZTuneCP5_postVFP_2016postVFP'] + 
+                     nevts_dict['ZZZTuneCP5_ext1_postVFP_2016postVFP'])
+            nevts_dict['ZZZTuneCP5_ext1_postVFP_2016postVFP'] = nevts
+            nevts_dict['ZZZTuneCP5_postVFP_2016postVFP'] = nevts
+        if 'WWZ4F_ext1_postVFP_2016postVFP' in fileset.keys():
+            nevts = (nevts_dict['WWZ4F_ext1_postVFP_2016postVFP'] + 
+                     nevts_dict['WWZ4F_postVFP_2016postVFP'])
+            nevts_dict['WWZ4F_postVFP_2016postVFP'] = nevts
+            nevts_dict['WWZ4F_ext1_postVFP_2016postVFP'] = nevts
+        if 'WZZTuneCP5_postVFP_2016postVFP' in fileset.keys():
+            nevts = (nevts_dict['WZZTuneCP5_postVFP_2016postVFP'] + 
+                     nevts_dict['WZZTuneCP5_ext1_postVFP_2016postVFP'])
+            nevts_dict['WZZTuneCP5_postVFP_2016postVFP'] = nevts
+            nevts_dict['WZZTuneCP5_ext1_postVFP_2016postVFP'] = nevts
+            
+    if (year=='2016preVFP'): a=1
+
+    return nevts_dict
 
 class VariableHarvester(processor.ProcessorABC):
     def __init__(self, collection_vars=[], global_vars=[]):

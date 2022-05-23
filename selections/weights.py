@@ -27,8 +27,8 @@ def get_fake_rates(base, year):
     fake_rates = {}
     ee_fr_file = f'JetEleFakeRate_Fall17MVAv2WP90_noIso_Iso0p15_UL{year}.root'
     mm_fr_file = f'JetMuFakeRate_Medium_Iso0p15_UL{year}.root'
-    mt_fr_file = f'JetTauFakeRate_Medium_Tight_VLoose_UL{year}.root'
-    et_fr_file = f'JetTauFakeRate_Medium_VLoose_Tight_UL{year}.root'
+    mt_fr_file = f'JetTauFakeRate_Medium_VLoose_Tight_UL{year}.root'
+    et_fr_file = f'JetTauFakeRate_Medium_Tight_VLoose_UL{year}.root'
     tt_fr_file = f'JetTauFakeRate_Medium_VLoose_VLoose_UL{year}.root'
     
     fake_rate_files = {'ee': join(base, ee_fr_file),

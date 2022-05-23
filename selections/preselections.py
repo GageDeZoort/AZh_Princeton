@@ -57,7 +57,7 @@ def get_baseline_electrons(electrons, cutflow):
     cutflow.fill_object(electrons, 'init', obj)
     
     baseline_e = electrons[(np.abs(electrons.dxy) < 0.045) &
-                        (np.abs(electrons.dz)  < 0.2)]
+                           (np.abs(electrons.dz)  < 0.2)]
     cutflow.fill_object(baseline_e, 'dxy<0.045&&dz<0.2', obj)
 
     baseline_e = baseline_e[(baseline_e.lostHits < 2)]
@@ -77,6 +77,7 @@ def get_baseline_electrons(electrons, cutflow):
 def tight_electrons(electrons):
     return ((electrons.mvaFall17V2noIso_WP90 > 0) & 
             (electrons.pfRelIso03_all < 0.15))
+            #(electrons.miniPFRelIso_all < 0.15))
 
 def get_baseline_muons(muons, cutflow):
     obj = 'baseline muons'
@@ -139,6 +140,32 @@ def tight_hadronic_taus(taus, cat):
         return vsJet_medium & ((taus.idDeepTau2017v2p1VSmu & 8) > 0)
     elif cat[2:]=='tt':
         return vsJet_medium
+
+def get_tight_masks(lltt, cat):
+    l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
+    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+    l1_mask, l2_mask, t1_mask, t2_mask = 0, 0, 0, 0
+    if cat[:2]=='ee':
+        l1_mask = tight_electrons(l1)
+        l2_mask = tight_electrons(l2)
+    if cat[:2]=='mm':
+        l1_mask = tight_muons(l1)
+        l2_mask = tight_muons(l2)
+    if cat[2:]=='em':
+        t1_mask = tight_electrons(t1)
+        t2_mask = tight_muons(t2)
+    if cat[2:]=='et':
+        t1_mask = tight_electrons(t1)
+        t2_mask = tight_hadronic_taus(t2, cat)
+    if cat[2:]=='mt':
+        t1_mask = tight_muons(t1)
+        t2_mask = tight_hadronic_taus(t2, cat)
+    if cat[2:]=='tt':
+        t1_mask = tight_hadronic_taus(t1, cat)
+        t2_mask = tight_hadronic_taus(t2, cat)
+
+    return (l1_mask, l2_mask, t1_mask, t2_mask)
+
 
 def tight_events(lltt, cat):
     l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
@@ -346,10 +373,8 @@ def lepton_count_veto(e_counts, m_counts, cat, cutflow):
                         'mmem': 1, 'mmet': 1, 'mmmt': 0, 'mmtt': 0}
     correct_m_counts = {'eeem': 1, 'eeet': 0, 'eemt': 1, 'eett': 0,
                         'mmem': 3, 'mmet': 2, 'mmmt': 3, 'mmtt': 2}
-
     mask = ((e_counts == correct_e_counts[cat]) &
             (m_counts == correct_m_counts[cat]))
-
     #cutflow.fill_cutflow(np.sum(mask>0), 'lepton_count_veto')
     return mask
 
@@ -368,7 +393,7 @@ def dR_ll(ll, cutflow):
 
 def build_Z_cand(ll, cutflow):
     ll_mass = (ll['l1'] + ll['l2']).mass
-    ll = ll[(ll['l1'].charge != ll['l2'].charge) &
+    ll = ll[(ll['l1'].charge*ll['l2'].charge<0) &
             ((ll_mass > 60) & (ll_mass < 120))]
     return ll[(~ak.is_none(ll, axis=1))] 
 
@@ -461,10 +486,7 @@ def tighten_ditau_legs(lltt, cat, cutflow):
 def highest_LT(lltt, cutflow):
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
     LT = t1.pt + t2.pt
-    print('LT', LT)
     lltt = lltt[ak.argmax(LT, axis=1, keepdims=True)]
-    print(ak.argmax(LT, axis=1, keepdims=True))
-    print(lltt)
     #cutflow.fill_cutflow(ak.sum(ak.flatten(~ak.is_none(lltt, axis=1))), 'ditau_cand')
     return lltt[~ak.is_none(lltt, axis=1)]
 
@@ -503,9 +525,8 @@ def is_prompt(lltt, cat):
         prompt_t2 = ((t2.genPartFlav>0) & (t2.genPartFlav<6)) 
         prompt_mask = prompt_mask & prompt_t1 & prompt_t2
 
-    fake_legs = {1: ~prompt_l1, 2: ~prompt_l2, 
-                 3: ~prompt_t1, 4: ~prompt_t2}
-    return ak.flatten(prompt_mask), fake_legs
+    #prompt_mask = prompt_mask.mask[ak.num(prompt_mask, axis=1)>0]
+    return prompt_mask #ak.fill_none(prompt_mask, False, axis=0)
 
 def is_prompt_base(lltt, cat, mode=-1):
     l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
@@ -516,39 +537,53 @@ def is_prompt_base(lltt, cat, mode=-1):
 
     if (mode=='e') or (mode=='m'):
         prompt_t2 = ((t2.genPartFlav>0) & (t2.genPartFlav<6))
-        prompt_mask = prompt_mask & prompt_t2
-    if (mode=='lt'):
+        prompt_mask = prompt_mask #& prompt_t2
+    elif (mode=='lt'):
         prompt_t1 = ((t1.genPartFlav==1) | (t1.genPartFlav==15))
-        prompt_mask = prompt_mask & prompt_t1
-    if (mode=='tt'):
+        prompt_mask = prompt_mask #& prompt_t1
+    elif (mode=='tt'):
         prompt_t2 = ((t2.genPartFlav>0) & (t2.genPartFlav<6))
-        prompt_mask = prompt_mask & prompt_t2
-    return ak.flatten(prompt_mask)
+        prompt_mask = prompt_mask #& prompt_t2
+    return prompt_mask
 
 def is_prompt_lepton(lltt, cat, mode=-1):
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
     if (mode=='e') or (mode=='m'):
-        return ak.flatten((t1.genPartFlav==1) | (t1.genPartFlav==15))
+        return ((t1.genPartFlav==1) | (t1.genPartFlav==15))
     if (mode=='lt'):
-        return ak.flatten((t2.genPartFlav>0) & (t2.genPartFlav<6))
+        return ((t2.genPartFlav>0) & (t2.genPartFlav<6))
     if (mode=='tt'):
-        return ak.flatten((t1.genPartFlav>0) & (t1.genPartFlav<6))
+        return ((t1.genPartFlav>0) & (t1.genPartFlav<6))
     else: return -1
+
+def is_tight_base(lltt, cat, mode=-1):
+    l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
+    t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
+    if (cat[:2]=='ee'): 
+        l1l2 = tight_electrons(l1) & tight_electrons(l2)
+    elif (cat[:2]=='mm'):
+        l1l2 = tight_muons(l1) & tight_muons(l2)
+        
+    if (mode=='e') or (mode=='m'):
+        return l1l2 #& tight_hadronic_taus(t2, cat)
+    elif (mode=='lt'):
+        if cat[2:]=='et':
+            return l1l2 #& tight_electrons(t1)
+        if cat[2:]=='mt':
+            return l1l2 #& tight_muons(t1)
+    elif (mode=='tt'):
+        return l1l2 #& tight_hadronic_taus(t2, cat)
 
 def is_tight_lepton(lltt, cat, mode=-1):
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
-    mask = np.ones(len(t1), dtype=bool)
-
-    # tighten prompt di-tau candidates
     if (mode=='e'):
-        mask = mask & ak.flatten(tight_electrons(t1))
+        return tight_electrons(t1)
     if (mode=='m'):
-        mask = mask & ak.flatten(tight_muons(t1))
+        return tight_muons(t1)
     if (mode=='lt'):
-        mask = mask & ak.flatten(tight_hadronic_taus(t2, cat))
+        return tight_hadronic_taus(t2, cat)
     if (mode=='tt'):
-        mask = mask & ak.flatten(tight_hadronic_taus(t1, cat))
-    return mask
+        return tight_hadronic_taus(t1, cat)
 
 def higgsLT(lltt, cat, cutflow):
     hLT_thld = {'et': 30, 'mt': 40, 'em': 20, 'tt': 80}

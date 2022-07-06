@@ -89,12 +89,18 @@ tIDs = get_tau_ID_weights(tID_file)
 logging.info(f'Using tID_SFs:\n{tIDs.keys()}')
 
 # load up electron / muon trigger SFs
+e_trigs = {'2016preVFP': 'Ele25_EtaLt2p1',
+           '2016postVFP': 'Ele25_EtaLt2p1',
+           '2017': 'Ele35', '2018': 'Ele35'}
 e_trig_base = f'corrections/electron_trigger/UL_{year}'
-e_trig_file = join(e_trig_base, f'Electron_RunUL{year}_Ele35.root')
+e_trig_file = join(e_trig_base, f'Electron_RunUL{year}_{e_trigs[year]}.root')
 e_trig_SFs = get_electron_trigger_SFs(e_trig_file)
 
+m_trigs = {'2016preVFP': 'IsoMu24orIsoTkMu24',
+           '2016postVFP': 'IsoMu24orIsoTkMu24',
+           '2017': 'IsoMu27', '2018': 'IsoMu27'}
 m_trig_base = f'corrections/muon_trigger/UL_{year}'
-m_trig_file = join(m_trig_base, f'Muon_RunUL{year}_IsoMu27.root')
+m_trig_file = join(m_trig_base, f'Muon_RunUL{year}_{m_trigs[year]}.root')
 m_trig_SFs = get_muon_trigger_SFs(m_trig_file)
 
 # load sample info and filesets

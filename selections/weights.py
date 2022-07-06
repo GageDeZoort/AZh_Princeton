@@ -207,7 +207,86 @@ def dyjets_stitch_weights(info, nevts_dict, year):
     weights = np.array([w0, w1, w2, w3, w4, w0])
     return CustomWeights(bins, weights)
 
-def apply_tau_ES(taus, met, SF_tool, syst='nom'):
+def apply_eleES(ele, met, syst='nom'):
+    if (syst=='nom'): return ele, met
+    flat_ele, num_ele = ak.flatten(ele), ak.num(ele)
+    pt, eta = ele.pt, ele.eta
+    phi, mass = ele.phi, ele.mass
+    in_barrel = (abs(eta) < 1.479)
+    in_crossover = ((abs(eta) > 1.479) & (abs(eta) < 1.653))
+    in_endcap = (abs(eta) > 1.653)
+    barrel_shifts = {'up': 1.03, 'down': 0.97}
+    crossover_shifts = {'up': 1.04, 'down': 0.96}
+    endcap_shifts = {'up': 1.05, 'down': 0.95}
+    weights = (in_barrel * barrel_shifts[syst] +
+               in_crossover * crossover_shifts[syst] +
+               in_endcap * endcap_shifts[syst])
+    ele_p4 = ak.zip({'pt': ele.pt, 'eta': ele.eta,
+                     'phi': ele.phi, 'mass': ele.mass},
+                     with_name='PtEtaPhiMLorentzVector')
+    ele_p4_shift = (weights * ele_p4)
+    ele['pt'] = ele_p4_shift.pt
+    ele['eta'] = ele_p4_shift.eta
+    ele['phi'] = ele_p4_shift.phi
+    ele['mass'] = ele_p4_shift.mass
+    ele_p4_diffs = ele_p4.add(ele_p4_shift.negative())
+    ele_p4_diffs = ele_p4_diffs.sum(axis=1)
+    met_p4 = ak.zip({'x': met.T1_pt * np.cos(met.T1_phi),
+                     'y': met.T1_pt * np.sin(met.T1_phi),
+                     'z': 0, 't': 0}, with_name='LorentzVector')
+    met_p4 = met_p4.add(ele_p4_diffs)
+    met['pt'] = met_p4.pt
+    met['phi'] = met_p4.phi
+    return ele, met
+
+def apply_eleSmear(ele, met, syst='nom'):
+    if (syst=='nom'): return ele, met
+    shift = ele.dEsigmaUp if (syst=='up') else ele.dEsigmaDown
+    weights = shift + 1.0
+    ele_p4 = ak.zip({'pt': ele.pt, 'eta': ele.eta,
+                     'phi': ele.phi, 'mass': ele.mass},
+                    with_name='PtEtaPhiMLorentzVector')
+    ele_p4_shift = (weights * ele_p4)
+    ele['pt'] = ele_p4_shift.pt
+    ele['eta'] = ele_p4_shift.eta
+    ele['phi'] = ele_p4_shift.phi
+    ele['mass'] = ele_p4_shift.mass
+    ele_p4_diffs = ele_p4.add(ele_p4_shift.negative())
+    ele_p4_diffs = ele_p4_diffs.sum(axis=1)
+    met_p4 = ak.zip({'x': met.T1_pt * np.cos(met.T1_phi),
+                     'y': met.T1_pt * np.sin(met.T1_phi),
+                     'z': 0, 't': 0}, with_name='LorentzVector')
+    met_p4 = met_p4.add(ele_p4_diffs)
+    met['pt'] = met_p4.pt
+    met['phi'] = met_p4.phi
+    return ele, met
+
+def apply_muES(mu, met, syst='nom'):
+    if (syst=='nom'): return mu, met
+    flat_mu, num_mu = ak.flatten(mu), ak.num(mu)
+    pt, eta = mu.pt, mu.eta
+    phi, mass = mu.phi, mu.mass
+    shifts = {'up': 1.01, 'down': 0.99}
+    weights = shifts[syst]
+    mu_p4 = ak.zip({'pt': mu.pt, 'eta': mu.eta,
+                    'phi': mu.phi, 'mass': mu.mass},
+                    with_name='PtEtaPhiMLorentzVector')
+    mu_p4_shift = (weights * mu_p4)
+    mu['pt'] = mu_p4_shift.pt
+    mu['eta'] = mu_p4_shift.eta
+    mu['phi'] = mu_p4_shift.phi
+    mu['mass'] = mu_p4_shift.mass
+    mu_p4_diffs = mu_p4.add(mu_p4_shift.negative())
+    mu_p4_diffs = mu_p4_diffs.sum(axis=1)
+    met_p4 = ak.zip({'x': met.T1_pt * np.cos(met.T1_phi),
+                     'y': met.T1_pt * np.sin(met.T1_phi),
+                     'z': 0, 't': 0}, with_name='LorentzVector')
+    met_p4 = met_p4.add(mu_p4_diffs)
+    met['pt'] = met_p4.pt
+    met['phi'] = met_p4.phi
+    return mu, met
+
+def apply_tauES(taus, met, SF_tool, syst='nom'):
     corr = SF_tool['tau_energy_scale']
     mask = (((taus.decayMode==0) | (taus.decayMode==1) |
              (taus.decayMode==2) | (taus.decayMode==10) | 
@@ -225,27 +304,20 @@ def apply_tau_ES(taus, met, SF_tool, syst='nom'):
     syst = syst
     
     TES = corr.evaluate(ak.to_numpy(pt), ak.to_numpy(eta), ak.to_numpy(dm), ak.to_numpy(genMatch),
-                        'DeepTau2017v2p1', 'nom')
+                        'DeepTau2017v2p1', syst)
     TES_new = np.ones(len(flat_mask), dtype=float)
     TES_new[flat_mask] = TES
     TES = ak.unflatten(TES_new, ntaus)
-    print('TES', TES)
-    print('TES small', TES[TES < 0.1])
     tau_p4 = ak.zip({'pt': taus.pt, 'eta': taus.eta,
                      'phi': taus.phi, 'mass': taus.mass},
                     with_name='PtEtaPhiMLorentzVector')
-    print('tau-p4', tau_p4)
-    taus['pt'] = taus.pt * TES
-    taus['eta'] = taus.eta * TES
-    taus['phi'] = taus.phi * TES
-    taus['mass'] = taus.mass * TES
-    tau_p4_corr = ak.zip({'pt': taus.pt, 'eta': taus.eta,
-                          'phi': taus.phi, 'mass': taus.mass},
-                         with_name='PtEtaPhiMLorentzVector')
-    print('tau_p4_corr', tau_p4_corr)
+    tau_p4_corr = TES * tau_p4
+    taus['pt'] = tau_p4_corr.pt
+    taus['eta'] = tau_p4_corr.eta
+    taus['phi'] = tau_p4_corr.phi
+    taus['mass'] = tau_p4_corr.mass
     tau_p4_diff = tau_p4.add(tau_p4_corr.negative())
     tau_p4_diff = ak.sum(tau_p4_diff, axis=1)
-    
     met_p4 = ak.zip({'x': met.T1_pt * np.cos(met.T1_phi), 
                      'y': met.T1_pt * np.sin(met.T1_phi),
                      'z': 0, 't': 0},
@@ -254,3 +326,19 @@ def apply_tau_ES(taus, met, SF_tool, syst='nom'):
     met['pt'] = new_met.pt
     met['phi'] = new_met.phi
     return taus, met
+
+def apply_ele_ES(ele, met, syst='nom'):
+    if 'nom': return ele, met
+    pt, eta = ele.pt, ele.eta
+    phi, mass = ele.phi, ele.mass
+    in_barrel = (abs(eta) < 1.479)
+    in_crossover = ((abs(eta) > 1.479) & (abs(eta) < 1.653))
+    in_endcap = (abs(eta) > 1.653)
+    barrel_shifts = {'up': 1.03, 'down': 0.97}
+    crossover_shifts = {'up': 1.04, 'down': 0.96}
+    endcap_shifts = {'up': 1.05, 'down': 0.95}
+    weights = (in_barrel * barrel_shifts[syst] + 
+               in_crossover * crossover_shifts[syst] +
+               in_endcap * endcap_shifts[syst])
+    print(weights)
+    

@@ -166,7 +166,6 @@ def get_tight_masks(lltt, cat):
 
     return (l1_mask, l2_mask, t1_mask, t2_mask)
 
-
 def tight_events(lltt, cat):
     l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
@@ -245,6 +244,7 @@ def get_ll(electrons, muons, cat):
     else:
         return ak.combinations(muons, 2, axis=1, fields=['l1', 'l2'])
 
+# in use
 def get_tt(electrons, muons, taus, cat):
     if cat[2:]=='mt':
         return ak.cartesian({'t1': muons, 't2': taus}, axis=1)
@@ -439,15 +439,20 @@ def trigger_filter(ll, trig_obj, cat, cutflow):
     filter_bit = ((lltrig['trobj'].filterBits & 2) > 0)
     if cat[:2] == 'mm': filter_bit = (filter_bit | 
                                       ((lltrig['trobj'].filterBits & 8) > 0))
-
+    
     l1_matches = lltrig[l1dR_matches & 
                         (lltrig['ll']['l1'].pt > pt_min) & 
                         filter_bit]
-
+    #l1_dr = l1_matches['ll']['l1'].delta_r(l1_matches['trobj'])
+    #l1_matches = l1_matches[ak.argmin(l1_dr, axis=1, keepdims=True)]
     l1_match_counts = ak.sum(~ak.is_none(l1_matches, axis=1), axis=1)
+    
     l2_matches = lltrig[l2dR_matches & 
                         (lltrig['ll']['l2'].pt > pt_min) & 
                         filter_bit]
+    #l2_dr = l2_matches['ll']['l2'].delta_r(l2_matches['trobj'])
+    #l2_matches = l2_matches[ak.argmin(l2_dr, axis=1, keepdims=True)]
+    
     l2_match_counts = ak.sum(~ak.is_none(l2_matches, axis=1), axis=1)
     trig_match = (((l1_match_counts) > 0) | 
                   ((l2_match_counts) > 0))
@@ -546,6 +551,7 @@ def is_prompt_base(lltt, cat, mode=-1):
         prompt_mask = prompt_mask #& prompt_t2
     return prompt_mask
 
+# in use
 def is_prompt_lepton(lltt, cat, mode=-1):
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
     if (mode=='e') or (mode=='m'):
@@ -556,24 +562,16 @@ def is_prompt_lepton(lltt, cat, mode=-1):
         return ((t1.genPartFlav>0) & (t1.genPartFlav<6))
     else: return -1
 
+# in use
 def is_tight_base(lltt, cat, mode=-1):
     l1, l2 = lltt['ll']['l1'], lltt['ll']['l2']
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
     if (cat[:2]=='ee'): 
-        l1l2 = tight_electrons(l1) & tight_electrons(l2)
+        return tight_electrons(l1) & tight_electrons(l2)
     elif (cat[:2]=='mm'):
-        l1l2 = tight_muons(l1) & tight_muons(l2)
+        return tight_muons(l1) & tight_muons(l2)
         
-    if (mode=='e') or (mode=='m'):
-        return l1l2 #& tight_hadronic_taus(t2, cat)
-    elif (mode=='lt'):
-        if cat[2:]=='et':
-            return l1l2 #& tight_electrons(t1)
-        if cat[2:]=='mt':
-            return l1l2 #& tight_muons(t1)
-    elif (mode=='tt'):
-        return l1l2 #& tight_hadronic_taus(t2, cat)
-
+# in use
 def is_tight_lepton(lltt, cat, mode=-1):
     t1, t2 = lltt['tt']['t1'], lltt['tt']['t2']
     if (mode=='e'):

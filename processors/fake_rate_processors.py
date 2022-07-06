@@ -208,18 +208,18 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
             lumi_mask = lumi_mask(events.run, events.luminosityBlock)
             weights.add('lumi_mask', lumi_mask)
         
-        # grab baseline defined leptons
+        # grab baseline leptons
         baseline_e = get_baseline_electrons(events.Electron, self.cutflow)
         baseline_m = get_baseline_muons(events.Muon, self.cutflow)
-        loose = True if 't' in self.mode else False
+        loose = True #if 't' in self.mode else False
         baseline_t = get_baseline_taus(events.Tau, self.cutflow, 
                                        is_UL=is_UL, loose=loose)
         
         # apply energy scale corrections to hadronic taus (/fakes)
         MET = events.MET
         if not is_data:
-            baseline_t, MET = apply_tau_ES(baseline_t, MET, 
-                                           self.tauID_SFs, syst='nom')
+            baseline_t, MET = apply_tauES(baseline_t, MET, 
+                                          self.tauID_SFs, syst='nom')
 
         # count the number of leptons per event passing tight iso/ID
         e_counts = ak.num(baseline_e[tight_electrons(baseline_e)])
@@ -234,7 +234,6 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
             if (cat[:2]=='ee') and ('_Electrons' not in filename): continue
             if (cat[:2]=='mm') and ('_Muons' not in filename): continue
 
-            mask = check_trigger_path(events.HLT, year, cat, self.cutflow)
             l = baseline_e if (cat=='ee') else baseline_m
             ll = ak.combinations(l, 2, axis=1, fields=['l1', 'l2'])
             ll = dR_ll(ll, self.cutflow)
@@ -243,6 +242,7 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
             mask, tpt1, teta1, tpt2, teta2 = trigger_filter(ll,
                                                             events.TrigObj,
                                                             cat, self.cutflow)
+            mask = mask & check_trigger_path(events.HLT, year, cat, self.cutflow)
             ll = ak.fill_none(ll.mask[mask], [], axis=0)
             ll_pairs[cat] = ll
 
@@ -267,30 +267,27 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         for cat in self.categories:
             if (cat[:2]=='ee') and ('_Electrons' not in filename): continue
             if (cat[:2]=='mm') and ('_Muons' not in filename): continue
-            #mask = lepton_count_veto(e_counts, m_counts, cat, self.cutflow)
-
+            
             # build 4l final state
             tt = get_tt(baseline_e, baseline_m, baseline_t, cat)
             lltt = ak.cartesian({'ll': ll_pairs[cat[:2]], 'tt': tt}, axis=1)
             lltt = dR_lltt(lltt, cat, self.cutflow)
             lltt = highest_LT(lltt, self.cutflow)
             #lltt = ak.fill_none(lltt.mask[mask], [], axis=0)
-            
-            # apply fake weights to estimate reducible background
+
             tight_base_mask = is_tight_base(lltt, cat, mode=mode)
+            if (mode=='lt') or (mode=='tt'):
+                tight_base_mask = tight_base_mask & lepton_count_veto(e_counts, m_counts, 
+                                                                      cat, self.cutflow)
             lltt = self.apply_mask(lltt, tight_base_mask)
             if len(ak.flatten(lltt))==0: continue
 
             if is_data:
                 tight_lep_mask = is_tight_lepton(lltt, cat, mode=mode)
-                data_denom = lltt
+                candidates[cat + '_data_denominator'] = lltt
                 data_num = self.apply_mask(lltt, tight_lep_mask)
-                candidates[cat + '_data_denominator'] = data_denom
                 candidates[cat + '_data_numerator'] = data_num
             else:
-                #prompt_base_mask = is_prompt_base(lltt, cat, mode=mode)
-                #lltt = self.apply_mask(lltt, prompt_base_mask)
-                #if len(ak.flatten(lltt))==0: continue
                 tight_lep_mask = is_tight_lepton(lltt, cat, mode=mode)
                 prompt_lep_mask = is_prompt_lepton(lltt, cat, mode=mode)
                 cands_pd = self.apply_mask(lltt, prompt_lep_mask)
@@ -306,14 +303,10 @@ class SS4lFakeRateProcessor(processor.ProcessorABC):
         #counts_mask = (ak.sum(candidate_counts, axis=0)==1)
         for cat, cands in candidates.items():
             mask = (ak.num(cands, axis=1)>0)
-            if 'numerator' in cat:
-                mask = mask & lepton_count_veto(e_counts, m_counts, 
-                                                cat.split('_')[0], self.cutflow)
             for j, sign in enumerate(['OS', 'SS']):
                 t1, t2 = cands['tt']['t1'], cands['tt']['t2']
                 sign_mask = (t1.charge * t2.charge < 0)
                 if (j==1): sign_mask = (t1.charge * t2.charge > 0)
-                #count_mask = (ak.num(cands, axis=1)>0)
                 lltt = cands[mask][ak.flatten(sign_mask[mask])]
                 met = MET[mask][ak.flatten(sign_mask[mask])]
                 weight = weights.weight()[mask][ak.flatten(sign_mask[mask])]
